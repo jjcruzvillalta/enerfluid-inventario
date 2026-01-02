@@ -244,10 +244,10 @@ const LoginScreen = ({ email, password, onEmailChange, onPasswordChange, onLogin
 const NavButton = ({ active, onClick, icon: Icon, children }) => (
   <button
     className={cn(
-      "flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition",
+      "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
       active
-        ? "border-accent/30 bg-accent text-white shadow-soft"
-        : "border-line bg-white text-slate-600 hover:bg-mist"
+        ? "border-accent/20 bg-accentSoft text-accent shadow-sm"
+        : "border-transparent bg-transparent text-slate-600 hover:bg-accentSoft/60"
     )}
     onClick={onClick}
     type="button"
@@ -358,6 +358,52 @@ const buildCatalogShare = (itemsIndex, selectedSet) => {
   return {
     labels: ["Catalogo", "No catalogo"],
     values: [catalogValue, nonCatalogValue],
+  };
+};
+
+const buildTopCustomersByYearData = (rows, maxTop = 15) => {
+  if (!rows?.length) return null;
+  const byYear = new Map();
+  rows.forEach((row) => {
+    const year = row.date instanceof Date ? row.date.getFullYear() : NaN;
+    if (!Number.isFinite(year)) return;
+    const value = Number.isFinite(row.ventaBruta) ? row.ventaBruta : 0;
+    if (!value) return;
+    const customer = row.persona || "Sin cliente";
+    const yearMap = byYear.get(year) || new Map();
+    yearMap.set(customer, (yearMap.get(customer) || 0) + value);
+    byYear.set(year, yearMap);
+  });
+
+  if (!byYear.size) return null;
+
+  const years = Array.from(byYear.keys()).sort((a, b) => a - b);
+  const topByYear = new Map();
+  years.forEach((year) => {
+    const entries = Array.from(byYear.get(year).entries()).sort((a, b) => b[1] - a[1]);
+    topByYear.set(year, entries.slice(0, maxTop));
+  });
+
+  const datasets = [];
+  for (let rank = maxTop - 1; rank >= 0; rank -= 1) {
+    const customerByYear = {};
+    const data = years.map((year) => {
+      const entry = topByYear.get(year)?.[rank];
+      if (entry) customerByYear[String(year)] = entry[0];
+      return entry ? entry[1] : 0;
+    });
+    datasets.push({
+      label: `Top ${rank + 1}`,
+      data,
+      customerByYear,
+      backgroundColor: palette[rank % palette.length],
+      stack: "ventas",
+    });
+  }
+
+  return {
+    labels: years.map(String),
+    datasets,
   };
 };
 
@@ -542,7 +588,10 @@ const stackedBarOptions = {
     tooltip: {
       callbacks: {
         label(context) {
-          return `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`;
+          const year = context.label;
+          const customer = context.dataset.customerByYear?.[year];
+          const label = customer || context.dataset.label;
+          return `${label}: ${formatCurrency(context.parsed.y)}`;
         },
       },
     },
@@ -571,6 +620,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [loadStatus, setLoadStatus] = useState("Sin cargar");
   const loadInProgressRef = useRef(false);
+  const hasAuthSessionRef = useRef(false);
 
   const [uploadLogs, setUploadLogs] = useState([]);
   const [movRows, setMovRows] = useState([]);
@@ -660,7 +710,27 @@ export default function App() {
   const salesByCustomerData = useMemo(() => {
     if (!ventas?.length) return null;
     const rows = selectedSet ? ventas.filter((row) => selectedSet.has(row.item)) : ventas.slice();
-    const totalsByCustomer = new Map();
+    return buildTopCustomersByYearData(rows, 15);
+  }, [ventas, selectedSet]);
+
+  const catalogLookup = useMemo(() => {
+    const map = new Map();
+    if (itemsIndex?.items?.length) {
+      itemsIndex.items.forEach((item) => {
+        map.set(item.code, item.isCatalog);
+      });
+    }
+    if (catalogIndex?.size) {
+      catalogIndex.forEach((_value, code) => {
+        map.set(code, true);
+      });
+    }
+    return map;
+  }, [itemsIndex, catalogIndex]);
+
+  const salesByCatalogData = useMemo(() => {
+    if (!ventas?.length) return null;
+    const rows = selectedSet ? ventas.filter((row) => selectedSet.has(row.item)) : ventas.slice();
     const byYear = new Map();
 
     rows.forEach((row) => {
@@ -668,50 +738,39 @@ export default function App() {
       if (!Number.isFinite(year)) return;
       const value = Number.isFinite(row.ventaBruta) ? row.ventaBruta : 0;
       if (!value) return;
-      const customer = row.persona || "Sin cliente";
-      totalsByCustomer.set(customer, (totalsByCustomer.get(customer) || 0) + value);
-      const yearMap = byYear.get(year) || new Map();
-      yearMap.set(customer, (yearMap.get(customer) || 0) + value);
+      const isCatalog = catalogLookup.get(row.item) === true;
+      const yearMap = byYear.get(year) || { catalogo: 0, noCatalogo: 0 };
+      if (isCatalog) yearMap.catalogo += value;
+      else yearMap.noCatalogo += value;
       byYear.set(year, yearMap);
     });
 
     if (!byYear.size) return null;
-
     const years = Array.from(byYear.keys()).sort((a, b) => a - b);
-    const sortedCustomers = Array.from(totalsByCustomer.entries()).sort((a, b) => b[1] - a[1]);
-    const topCustomers = sortedCustomers.slice(0, 6).map(([name]) => name);
-    const hasOthers = sortedCustomers.length > topCustomers.length;
-
-    const datasets = topCustomers.map((customer, idx) => ({
-      label: customer,
-      data: years.map((year) => byYear.get(year)?.get(customer) || 0),
-      backgroundColor: palette[idx % palette.length],
-      stack: "ventas",
-    }));
-
-    if (hasOthers) {
-      const otherValues = years.map((year) => {
-        const yearMap = byYear.get(year);
-        if (!yearMap) return 0;
-        let total = 0;
-        yearMap.forEach((value, customer) => {
-          if (!topCustomers.includes(customer)) total += value;
-        });
-        return total;
-      });
-      datasets.push({
-        label: "Otros",
-        data: otherValues,
-        backgroundColor: "#94a3b8",
-        stack: "ventas",
-      });
-    }
-
     return {
       labels: years.map(String),
-      datasets,
+      datasets: [
+        {
+          label: "Catalogo",
+          data: years.map((year) => byYear.get(year)?.catalogo || 0),
+          backgroundColor: palette[0],
+          stack: "ventas",
+        },
+        {
+          label: "No catalogo",
+          data: years.map((year) => byYear.get(year)?.noCatalogo || 0),
+          backgroundColor: palette[4],
+          stack: "ventas",
+        },
+      ],
     };
-  }, [ventas, selectedSet]);
+  }, [ventas, selectedSet, catalogLookup]);
+
+  const itemSalesByCustomerData = useMemo(() => {
+    if (!itemModal.item || !ventas?.length) return null;
+    const rows = ventas.filter((row) => row.item === itemModal.item.code);
+    return buildTopCustomersByYearData(rows, 15);
+  }, [ventas, itemModal.item]);
 
   const motives = useMemo(() => {
     const set = new Set();
@@ -838,6 +897,7 @@ export default function App() {
 
   const handleSession = useCallback(
     async (nextSession) => {
+      const wasAuthenticated = hasAuthSessionRef.current;
       setSession((prev) => {
         if (!nextSession) return null;
         if (prev?.access_token && nextSession?.access_token && prev.access_token === nextSession.access_token) {
@@ -846,18 +906,20 @@ export default function App() {
         return nextSession;
       });
       if (!nextSession || !nextSession.user) {
+        hasAuthSessionRef.current = false;
         setAuthStatus("No autenticado");
-        setActiveView("upload");
         return;
       }
       const userEmail = String(nextSession.user.email || "").toLowerCase();
       if (SUPABASE_ALLOWED_EMAIL && userEmail !== SUPABASE_ALLOWED_EMAIL) {
         setAuthStatus("Usuario no autorizado");
         if (supabaseClient) await supabaseClient.auth.signOut();
+        hasAuthSessionRef.current = false;
         return;
       }
       setAuthStatus("Autenticado");
-      setActiveView("upload");
+      hasAuthSessionRef.current = true;
+      if (!wasAuthenticated) setActiveView("upload");
     },
     []
   );
@@ -1349,7 +1411,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-cloud text-ink">
       <div className="flex min-h-screen">
-        <aside className="hidden lg:flex w-72 flex-col border-r border-line bg-white px-6 py-8 shadow-soft">
+        <aside className="hidden lg:flex w-72 flex-col border-r border-line bg-white px-6 py-8 shadow-soft lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
           <div className="flex items-center gap-3">
             <img src="/enerfluid-logo.png" alt="Enerfluid" className="h-10" />
             <div>
@@ -1504,37 +1566,41 @@ export default function App() {
           {activeView === "analysis" && (
             <div className="space-y-6">
               <Card>
-                <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <CardTitle>Seleccion de items</CardTitle>
                     <CardDescription>Busca por codigo, descripcion o marca. Seleccion multiple disponible.</CardDescription>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <div className="text-sm text-slate-500">Items activos</div>
-                    <div className="font-semibold text-slate-700">{itemCountLabel}</div>
-                    <Button variant="outline" size="sm" onClick={() => {
-                      if (!itemsIndex) return;
-                      const codes = filteredItems.map((item) => item.code);
-                      setSelection((prev) => {
-                        const next = new Set(prev);
-                        codes.forEach((code) => next.add(code));
-                        return next;
-                      });
-                    }}>Seleccionar filtrados</Button>
-                    <Button variant="outline" size="sm" onClick={() => {
-                      if (!itemsIndex) return;
-                      const codes = filteredItems.map((item) => item.code);
-                      setSelection((prev) => {
-                        const next = new Set(prev);
-                        codes.forEach((code) => next.delete(code));
-                        return next;
-                      });
-                    }}>Deseleccionar filtrados</Button>
-                    <Button variant="outline" size="sm" onClick={() => {
-                      if (!itemsIndex) return;
-                      setSelection(new Set(itemsIndex.items.map((item) => item.code)));
-                    }}>Todos</Button>
-                    <Button variant="outline" size="sm" onClick={() => setSelection(new Set())}>Ninguno</Button>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                    <div className="flex items-center gap-2 rounded-full border border-line bg-white px-3 py-1 text-xs text-slate-500">
+                      <span className="uppercase tracking-[0.18em] text-[10px] text-slate-400">Items activos</span>
+                      <span className="font-semibold text-slate-700">{itemCountLabel}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" className="rounded-full" onClick={() => {
+                        if (!itemsIndex) return;
+                        const codes = filteredItems.map((item) => item.code);
+                        setSelection((prev) => {
+                          const next = new Set(prev);
+                          codes.forEach((code) => next.add(code));
+                          return next;
+                        });
+                      }}>Seleccionar filtrados</Button>
+                      <Button variant="outline" size="sm" className="rounded-full" onClick={() => {
+                        if (!itemsIndex) return;
+                        const codes = filteredItems.map((item) => item.code);
+                        setSelection((prev) => {
+                          const next = new Set(prev);
+                          codes.forEach((code) => next.delete(code));
+                          return next;
+                        });
+                      }}>Deseleccionar filtrados</Button>
+                      <Button variant="outline" size="sm" className="rounded-full" onClick={() => {
+                        if (!itemsIndex) return;
+                        setSelection(new Set(itemsIndex.items.map((item) => item.code)));
+                      }}>Todos</Button>
+                      <Button variant="outline" size="sm" className="rounded-full" onClick={() => setSelection(new Set())}>Ninguno</Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1649,16 +1715,28 @@ export default function App() {
               </Card>
 
               <Card>
-                <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <CardTitle>Evolucion del inventario</CardTitle>
-                    <CardDescription>{latestRangeLabel}</CardDescription>
+                <CardHeader className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <CardTitle>Evolucion del inventario</CardTitle>
+                      <CardDescription>{latestRangeLabel}</CardDescription>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-6 text-sm">
+                      <div>
+                        <div className="text-slate-400">Valor ultimo punto</div>
+                        <div className="font-semibold text-slate-700">{inventorySeries ? formatCurrency(inventorySeries.lastValue) : "-"}</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-400">Unidades ultimo punto</div>
+                        <div className="font-semibold text-slate-700">{inventorySeries ? Number(inventorySeries.lastUnits).toLocaleString("es-EC") : "-"}</div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[160px_220px_220px]">
                     <label className="text-xs text-slate-600">
                       Agregacion
                       <select
-                        className="mt-1 w-28 rounded-xl border border-line bg-white px-2 py-1 text-sm"
+                        className="mt-1 h-10 w-full rounded-xl border border-line bg-white px-3 text-sm text-ink shadow-sm"
                         value={inventoryPeriod}
                         onChange={(event) => setInventoryPeriod(event.target.value)}
                       >
@@ -1676,16 +1754,6 @@ export default function App() {
                       Hasta
                       <Input type="date" value={inventoryEndDate} onChange={(event) => setInventoryEndDate(event.target.value)} />
                     </label>
-                  </div>
-                  <div className="flex gap-4 text-sm">
-                    <div>
-                      <div className="text-slate-400">Valor ultimo punto</div>
-                      <div className="font-semibold text-slate-700">{inventorySeries ? formatCurrency(inventorySeries.lastValue) : "-"}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-400">Unidades ultimo punto</div>
-                      <div className="font-semibold text-slate-700">{inventorySeries ? Number(inventorySeries.lastUnits).toLocaleString("es-EC") : "-"}</div>
-                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="grid gap-4 lg:grid-cols-2">
@@ -1817,12 +1885,32 @@ export default function App() {
               <Card>
                 <CardHeader>
                   <CardTitle>Ventas por cliente</CardTitle>
-                  <CardDescription>Ventas anuales de los items seleccionados, agrupadas por cliente.</CardDescription>
+                  <CardDescription>
+                    Top 15 clientes por anio (ordenados de mayor a menor en cada columna).
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-72">
                     {salesByCustomerData ? (
                       <Bar data={salesByCustomerData} options={stackedBarOptions} />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                        Sin datos de ventas para graficar.
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ventas por tipo de item</CardTitle>
+                  <CardDescription>Ventas anuales agrupadas por items de catalogo y no catalogo.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    {salesByCatalogData ? (
+                      <Bar data={salesByCatalogData} options={stackedBarOptions} />
                     ) : (
                       <div className="flex h-full items-center justify-center text-sm text-slate-400">
                         Sin datos de ventas para graficar.
@@ -2058,6 +2146,23 @@ export default function App() {
               {itemCostChartData && <Line data={itemCostChartData} options={itemCostOptions} />}
             </ChartWrap>
           </div>
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Ventas por cliente (item)</CardTitle>
+              <CardDescription>Top 15 clientes por anio para este item.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64">
+                {itemSalesByCustomerData ? (
+                  <Bar data={itemSalesByCustomerData} options={stackedBarOptions} />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                    Sin datos de ventas para graficar.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
           <div className="mt-4 max-h-[260px] overflow-auto rounded-2xl border border-line">
             <table className="w-full text-xs">
               <thead className="bg-mist text-[11px] uppercase text-slate-500">
