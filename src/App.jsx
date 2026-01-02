@@ -419,6 +419,8 @@ const buildReplenishmentData = ({
   selectedSet,
   monthsWindow,
   targetMonths,
+  leadTimeMonths,
+  bufferMonths,
   selectedMotives,
 }) => {
   if (!itemsIndex || !movements?.length) return null;
@@ -463,6 +465,11 @@ const buildReplenishmentData = ({
     }
   });
 
+  const leadMonths = Math.max(0, Number(leadTimeMonths) || 0);
+  const buffer = Math.max(0, Number(bufferMonths) || 0);
+  const minCoverageMonths = leadMonths + buffer;
+  const coverageTarget = Math.max(minCoverageMonths, Number(targetMonths) || 0);
+
   const rows = items.map((item) => {
     const stockCurrent = Number.isFinite(item.stock) ? item.stock : 0;
     let stock = beforeStock.get(item.code) || 0;
@@ -476,12 +483,13 @@ const buildReplenishmentData = ({
     const consumptionUnits = consumptionByItem.get(item.code) || 0;
     const availableMonths = availableDays / 30;
     const consumptionMonthly = availableMonths > 0 ? consumptionUnits / availableMonths : 0;
-    const requiredStock = consumptionMonthly * targetMonths;
-    const qtyToBuy = Math.max(0, requiredStock - stockCurrent);
-    const unitCost = Number.isFinite(item.lastCost) ? item.lastCost : item.cost;
-    const costEstimate = Number.isFinite(unitCost) ? qtyToBuy * unitCost : NaN;
+    const requiredStock = consumptionMonthly * coverageTarget;
     const monthsCoverage =
       consumptionMonthly > 0 ? stockCurrent / consumptionMonthly : stockCurrent > 0 ? Infinity : 0;
+    const shouldBuy = consumptionMonthly > 0 && monthsCoverage <= minCoverageMonths;
+    const qtyToBuy = shouldBuy ? Math.max(0, requiredStock - stockCurrent) : 0;
+    const unitCost = Number.isFinite(item.lastCost) ? item.lastCost : item.cost;
+    const costEstimate = Number.isFinite(unitCost) ? qtyToBuy * unitCost : NaN;
 
     return {
       code: item.code,
@@ -492,12 +500,18 @@ const buildReplenishmentData = ({
       availableMonths,
       consumptionMonthly,
       monthsCoverage,
+      minCoverageMonths,
+      coverageTarget,
+      shouldBuy,
       qtyToBuy,
       costEstimate,
     };
   });
 
-  rows.sort((a, b) => (b.costEstimate || 0) - (a.costEstimate || 0));
+  rows.sort((a, b) => {
+    if (a.shouldBuy !== b.shouldBuy) return a.shouldBuy ? -1 : 1;
+    return (b.costEstimate || 0) - (a.costEstimate || 0);
+  });
 
   const brandMap = new Map();
   rows.forEach((row) => {
@@ -510,7 +524,17 @@ const buildReplenishmentData = ({
   });
 
   const brandRows = [...brandMap.values()].sort((a, b) => b.cost - a.cost);
-  return { rows, brandRows, startDate, endDate, monthsWindow };
+  return {
+    rows,
+    brandRows,
+    startDate,
+    endDate,
+    monthsWindow,
+    minCoverageMonths,
+    coverageTarget,
+    leadTimeMonths: leadMonths,
+    bufferMonths: buffer,
+  };
 };
 
 const buildLineOptions = (period, labelFormatter) => ({
@@ -650,7 +674,9 @@ export default function App() {
   const [motSelection, setMotSelection] = useState(new Set());
   const [consumptionMotSelection, setConsumptionMotSelection] = useState(new Set());
   const [consumptionWindowMonths, setConsumptionWindowMonths] = useState(12);
-  const [targetCoverageMonths, setTargetCoverageMonths] = useState(3);
+  const [leadTimeMonths, setLeadTimeMonths] = useState(1.5);
+  const [bufferMonths, setBufferMonths] = useState(3);
+  const [targetCoverageMonths, setTargetCoverageMonths] = useState(12);
 
   const [brandModal, setBrandModal] = useState({ open: false, brand: "", rows: [] });
   const [itemModal, setItemModal] = useState({ open: false, item: null });
@@ -841,12 +867,16 @@ export default function App() {
       selectedSet: null,
       monthsWindow: Math.max(1, Number(consumptionWindowMonths) || 12),
       targetMonths: Math.max(0, Number(targetCoverageMonths) || 0),
+      leadTimeMonths: Math.max(0, Number(leadTimeMonths) || 0),
+      bufferMonths: Math.max(0, Number(bufferMonths) || 0),
       selectedMotives: getSelectedMotives(motives, consumptionMotSelection),
     }), [
       itemsIndex,
       movements,
       consumptionMotSelection,
       consumptionWindowMonths,
+      leadTimeMonths,
+      bufferMonths,
       targetCoverageMonths,
       motives,
     ]
@@ -1928,20 +1958,68 @@ export default function App() {
                 <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
                     <CardTitle>Necesidades de reposicion</CardTitle>
-                    <CardDescription>Consumo calculado con egresos (movimientos) y motivos seleccionados.</CardDescription>
+                    <CardDescription>
+                      Compra cuando la cobertura cae por debajo del minimo (lead time + colchon) y repone al objetivo.
+                    </CardDescription>
                   </div>
-                  <div className="text-sm text-slate-500">Items catalogo {replenishmentData?.rows?.length || 0}</div>
+                  <div className="text-sm text-slate-500">
+                    Items catalogo {replenishmentData?.rows?.length || 0}
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-4">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <label className="text-xs text-slate-600">
                       Ventana de consumo (meses)
-                      <Input type="number" min="1" value={consumptionWindowMonths} onChange={(event) => setConsumptionWindowMonths(event.target.value)} />
+                      <Input
+                        type="number"
+                        min="1"
+                        value={consumptionWindowMonths}
+                        onChange={(event) => setConsumptionWindowMonths(event.target.value)}
+                      />
+                    </label>
+                    <label className="text-xs text-slate-600">
+                      Lead time asumido (meses)
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={leadTimeMonths}
+                        onChange={(event) => setLeadTimeMonths(event.target.value)}
+                      />
+                    </label>
+                    <label className="text-xs text-slate-600">
+                      Colchon (meses)
+                      <Input
+                        type="number"
+                        min="0"
+                        value={bufferMonths}
+                        onChange={(event) => setBufferMonths(event.target.value)}
+                      />
                     </label>
                     <label className="text-xs text-slate-600">
                       Objetivo de cobertura (meses)
-                      <Input type="number" min="1" value={targetCoverageMonths} onChange={(event) => setTargetCoverageMonths(event.target.value)} />
+                      <Input
+                        type="number"
+                        min="1"
+                        value={targetCoverageMonths}
+                        onChange={(event) => setTargetCoverageMonths(event.target.value)}
+                      />
                     </label>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-xs text-slate-600">
+                    <span>
+                      Minimo para comprar:{" "}
+                      <strong>{formatNumber(replenishmentData?.minCoverageMonths ?? 0, 1)} meses</strong>
+                    </span>
+                    <span className="text-slate-400">|</span>
+                    <span>
+                      Lead time: <strong>{formatNumber(replenishmentData?.leadTimeMonths ?? 0, 1)} meses</strong>
+                    </span>
+                    <span className="text-slate-400">|</span>
+                    <span>
+                      Objetivo:{" "}
+                      <strong>{formatNumber(replenishmentData?.coverageTarget ?? 0, 1)} meses</strong>
+                    </span>
                   </div>
                   <div className="rounded-2xl border border-line p-3">
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
@@ -1981,6 +2059,8 @@ export default function App() {
                           <th className="px-3 py-2 text-left">Meses con stock</th>
                           <th className="px-3 py-2 text-left">Consumo mensual</th>
                           <th className="px-3 py-2 text-left">Meses cobertura</th>
+                          <th className="px-3 py-2 text-left">Min cobertura</th>
+                          <th className="px-3 py-2 text-left">Comprar</th>
                           <th className="px-3 py-2 text-left">Reponer (u)</th>
                           <th className="px-3 py-2 text-left">Costo estimado</th>
                         </tr>
@@ -1996,6 +2076,14 @@ export default function App() {
                             <td className="px-3 py-2">{row.availableMonths === Infinity ? "8" : formatNumber(row.availableMonths, 1)}</td>
                             <td className="px-3 py-2">{formatNumber(row.consumptionMonthly, 2)}</td>
                             <td className="px-3 py-2">{row.monthsCoverage === Infinity ? "8" : formatNumber(row.monthsCoverage, 1)}</td>
+                            <td className="px-3 py-2">{formatNumber(row.minCoverageMonths, 1)}</td>
+                            <td className="px-3 py-2">
+                              {row.shouldBuy ? (
+                                <Badge variant="outline" className="text-amber-600">Comprar</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-slate-400">Ok</Badge>
+                              )}
+                            </td>
                             <td className="px-3 py-2">{formatNumber(row.qtyToBuy)}</td>
                             <td className="px-3 py-2">{formatCurrency(row.costEstimate)}</td>
                           </tr>
@@ -2073,7 +2161,9 @@ export default function App() {
           </DialogClose>
           <DialogHeader>
             <DialogTitle>Detalle de marca: {brandModal.brand}</DialogTitle>
-            <p className="text-sm text-slate-500">Ventana: {replenishmentData?.monthsWindow || "-"} meses | Objetivo: {targetCoverageMonths} meses</p>
+            <p className="text-sm text-slate-500">
+              Ventana: {replenishmentData?.monthsWindow || "-"} meses | Lead time: {formatNumber(replenishmentData?.leadTimeMonths ?? 0, 1)} meses | Min: {formatNumber(replenishmentData?.minCoverageMonths ?? 0, 1)} meses | Objetivo: {formatNumber(replenishmentData?.coverageTarget ?? 0, 1)} meses
+            </p>
           </DialogHeader>
           <div className="mt-4 max-h-[260px] overflow-auto rounded-2xl border border-line">
             <table className="w-full text-xs">
