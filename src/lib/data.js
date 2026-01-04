@@ -2,7 +2,39 @@ import * as XLSX from "xlsx";
 
 export const toNumber = (value) => {
   if (value === null || value === undefined || value === "") return NaN;
-  const num = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+  if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+  let raw = String(value).trim();
+  if (!raw) return NaN;
+  const negative = raw.startsWith("-");
+  raw = raw.replace(/[^0-9,.-]/g, "");
+  raw = raw.replace(/(?!^)-/g, "");
+  if (negative && !raw.startsWith("-")) raw = `-${raw.replace(/-/g, "")}`;
+
+  const hasComma = raw.includes(",");
+  const hasDot = raw.includes(".");
+
+  if (hasComma && hasDot) {
+    if (raw.lastIndexOf(",") > raw.lastIndexOf(".")) {
+      raw = raw.replace(/\./g, "");
+      raw = raw.replace(/,/g, ".");
+    } else {
+      raw = raw.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    const parts = raw.split(",");
+    if (parts.length === 2 && parts[1].length <= 2) {
+      raw = `${parts[0].replace(/\./g, "")}.${parts[1]}`;
+    } else {
+      raw = raw.replace(/,/g, "");
+    }
+  } else if (hasDot) {
+    const parts = raw.split(".");
+    if (!(parts.length === 2 && parts[1].length <= 2)) {
+      raw = raw.replace(/\./g, "");
+    }
+  }
+
+  const num = Number(raw);
   return Number.isFinite(num) ? num : NaN;
 };
 
