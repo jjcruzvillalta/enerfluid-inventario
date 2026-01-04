@@ -958,12 +958,16 @@ export default function App() {
     const pageSize = 1000;
     let from = 0;
     let allRows = [];
-    while (true) {
+    let hasMore = true;
+    while (hasMore) {
       const { data, error } = await supabaseClient.from(table).select("*").range(from, from + pageSize - 1);
       if (error) throw error;
       allRows = allRows.concat(data || []);
-      if (!data || data.length < pageSize) break;
-      from += pageSize;
+      if (!data || data.length < pageSize) {
+        hasMore = false;
+      } else {
+        from += pageSize;
+      }
     }
     return allRows;
   }, []);
