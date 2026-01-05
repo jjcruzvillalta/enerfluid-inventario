@@ -196,16 +196,20 @@ const formatNumber = (value, digits = 0) =>
 const LoginScreen = ({ email, password, onEmailChange, onPasswordChange, onLogin, status }) => (
   <div className="min-h-screen bg-cloud flex items-center justify-center px-4">
     <div className="grid w-full max-w-4xl overflow-hidden rounded-[32px] glass-panel md:grid-cols-[1.1fr_0.9fr]">
-      <div className="hidden md:flex flex-col justify-between bg-gradient-to-br from-navy via-slate-800 to-ink p-10 text-white">
-        <div className="flex items-center gap-3">
+      <div
+        className="relative hidden overflow-hidden md:flex flex-col justify-between p-10 text-white"
+        style={{ backgroundImage: "url(/login-hero.png)" }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-navy/95 via-slate-900/90 to-ink/85" />
+        <div className="relative z-10 flex items-center gap-3">
           <img src="/enerfluid-logo.png" alt="Enerfluid" className="h-9" />
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-white/70">Enerfluid</p>
             <p className="text-lg font-semibold">Inventario Inteligente</p>
           </div>
         </div>
-        <div>
-          <h2 className="text-2xl font-semibold leading-tight">Gestiona inventario, ventas y reposicion en un solo panel.</h2>
+        <div className="relative z-10">
+          <h2 className="text-2xl font-semibold leading-tight">Gestiona inventario y catalogo en un solo panel.</h2>
           <p className="mt-3 text-sm text-white/70">
             Accede con tu usuario autorizado y carga los archivos de manera segura.
           </p>
