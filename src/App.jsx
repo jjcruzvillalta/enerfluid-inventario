@@ -91,6 +91,17 @@ const palette = [
   "#a855f7",
 ];
 
+const hashKey = (value) => {
+  const text = String(value || "");
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+};
+
+const colorForKey = (value) => palette[hashKey(value) % palette.length];
+
 const pieLabelPlugin = {
   id: "pieLabelPlugin",
   afterDatasetsDraw(chart, _args, pluginOptions) {
@@ -206,26 +217,22 @@ const LoginScreen = ({ email, password, onEmailChange, onPasswordChange, onLogin
         }}
       >
         <div className="absolute inset-0 bg-gradient-to-br from-navy/70 via-slate-900/55 to-ink/45" />
-        <div className="relative z-10 flex items-center gap-3">
-          <img src="/enerfluid-logo.png" alt="Enerfluid" className="h-9" />
-          <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-white/70">Enerfluid</p>
-            <p className="text-lg font-semibold">Inventario Inteligente</p>
-          </div>
+        <div className="relative z-10">
+          <p className="text-xs uppercase tracking-[0.25em] text-white/70">Enerfluid</p>
+          <p className="text-lg font-semibold">Inventario Inteligente</p>
         </div>
         <div className="relative z-10">
-          <h2 className="text-2xl font-semibold leading-tight">Gestiona inventario y catalogo en un solo panel.</h2>
+          <h2 className="text-2xl font-semibold leading-tight">Gestiona inventario y catálogo en un solo panel.</h2>
           <p className="mt-3 text-sm text-white/70">
             Accede con tu usuario autorizado y carga los archivos de manera segura.
           </p>
         </div>
       </div>
       <div className="p-8 md:p-10">
-        <div className="flex items-center gap-3 md:hidden">
-          <img src="/enerfluid-logo.png" alt="Enerfluid" className="h-8" />
-          <p className="text-sm font-semibold text-slate-500">Enerfluid Inventario</p>
+        <div className="flex items-center gap-3">
+          <img src="/enerfluid-logo.png" alt="Enerfluid" className="h-9" />
         </div>
-        <div className="mt-6 space-y-2">
+        <div className="mt-5 space-y-2">
           <h1 className="text-2xl font-semibold text-slate-800">Bienvenido</h1>
           <p className="text-sm text-slate-500">Inicia sesion para acceder al panel.</p>
         </div>
@@ -318,6 +325,20 @@ const ChartWrap = ({ title, children, empty }) => (
   </Card>
 );
 
+const CustomerLegend = ({ items }) => {
+  if (!items?.length) return null;
+  return (
+    <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-600">
+      {items.map((item) => (
+        <div key={item.label} className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+          <span>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const getSelectedSet = (itemsIndex, selection) => {
   if (!itemsIndex) return null;
   if (!selection || selection.size === itemsIndex.items.length) return null;
@@ -370,9 +391,10 @@ const buildCatalogShare = (itemsIndex, selectedSet) => {
   };
 };
 
-const buildTopCustomersByYearData = (rows, maxTop = 15) => {
+const buildTopCustomersByYearData = (rows, maxTop = 10, legendTop = 10) => {
   if (!rows?.length) return null;
   const byYear = new Map();
+  const totalsByCustomer = new Map();
   rows.forEach((row) => {
     const year = row.date instanceof Date ? row.date.getFullYear() : NaN;
     if (!Number.isFinite(year)) return;
@@ -387,25 +409,61 @@ const buildTopCustomersByYearData = (rows, maxTop = 15) => {
   if (!byYear.size) return null;
 
   const years = Array.from(byYear.keys()).sort((a, b) => a - b);
-  const topByYear = new Map();
+  const topEntriesByYear = new Map();
+  let hasOthers = false;
   years.forEach((year) => {
     const entries = Array.from(byYear.get(year).entries()).sort((a, b) => b[1] - a[1]);
-    topByYear.set(year, entries.slice(0, maxTop));
+    const topEntries = entries.slice(0, maxTop);
+    const othersTotal = entries.slice(maxTop).reduce((sum, entry) => sum + entry[1], 0);
+    topEntriesByYear.set(year, topEntries);
+    topEntries.forEach(([customer, value]) => {
+      totalsByCustomer.set(customer, (totalsByCustomer.get(customer) || 0) + value);
+    });
+    if (othersTotal > 0) hasOthers = true;
   });
 
+  const legendItems = Array.from(totalsByCustomer.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, legendTop)
+    .map(([customer]) => ({ label: customer, color: colorForKey(customer) }));
+
+  if (hasOthers) legendItems.push({ label: "Otros", color: palette[5] });
+
   const datasets = [];
+  if (hasOthers) {
+    const othersData = years.map((year) => {
+      const entries = Array.from(byYear.get(year).entries()).sort((a, b) => b[1] - a[1]);
+      return entries.slice(maxTop).reduce((sum, entry) => sum + entry[1], 0);
+    });
+    datasets.push({
+      label: "Otros",
+      data: othersData,
+      backgroundColor: palette[5],
+      stack: "ventas",
+    });
+  }
+
   for (let rank = maxTop - 1; rank >= 0; rank -= 1) {
     const customerByYear = {};
-    const data = years.map((year) => {
-      const entry = topByYear.get(year)?.[rank];
-      if (entry) customerByYear[String(year)] = entry[0];
-      return entry ? entry[1] : 0;
+    const data = [];
+    const colors = [];
+    years.forEach((year) => {
+      const entry = topEntriesByYear.get(year)?.[rank];
+      if (!entry) {
+        data.push(0);
+        colors.push("rgba(0, 0, 0, 0)");
+        return;
+      }
+      const [customer, value] = entry;
+      customerByYear[String(year)] = customer;
+      data.push(value);
+      colors.push(colorForKey(customer));
     });
     datasets.push({
       label: `Top ${rank + 1}`,
       data,
       customerByYear,
-      backgroundColor: palette[rank % palette.length],
+      backgroundColor: colors,
       stack: "ventas",
     });
   }
@@ -413,6 +471,7 @@ const buildTopCustomersByYearData = (rows, maxTop = 15) => {
   return {
     labels: years.map(String),
     datasets,
+    legendItems,
   };
 };
 
@@ -607,7 +666,7 @@ const pieOptions = {
   },
 };
 
-const stackedBarOptions = {
+const buildStackedBarOptions = (legendTotals) => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
@@ -616,8 +675,49 @@ const stackedBarOptions = {
       labels: {
         color: "#0f172a",
         usePointStyle: true,
+        ...(legendTotals
+          ? {
+              generateLabels(chart) {
+                const base = ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
+                const unique = new Map();
+                base.forEach((item) => {
+                  if (!unique.has(item.text)) unique.set(item.text, item);
+                });
+                return Array.from(unique.values()).sort(
+                  (a, b) => (legendTotals.get(b.text) || 0) - (legendTotals.get(a.text) || 0)
+                );
+              },
+            }
+          : null),
       },
     },
+    tooltip: {
+      callbacks: {
+        label(context) {
+          return `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`;
+        },
+      },
+    },
+  },
+  scales: {
+    x: {
+      stacked: true,
+      ticks: { color: "#64748b", font: { size: 11 } },
+      grid: { color: "rgba(15, 23, 42, 0.08)" },
+    },
+    y: {
+      stacked: true,
+      ticks: { color: "#64748b", font: { size: 11 } },
+      grid: { color: "rgba(15, 23, 42, 0.08)" },
+    },
+  },
+});
+
+const customerStackedOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
     tooltip: {
       callbacks: {
         label(context) {
@@ -745,7 +845,7 @@ export default function App() {
   const salesByCustomerData = useMemo(() => {
     if (!ventas?.length) return null;
     const rows = selectedSet ? ventas.filter((row) => selectedSet.has(row.item)) : ventas.slice();
-    return buildTopCustomersByYearData(rows, 15);
+    return buildTopCustomersByYearData(rows, 10, 10);
   }, [ventas, selectedSet]);
 
   const catalogLookup = useMemo(() => {
@@ -804,7 +904,7 @@ export default function App() {
   const itemSalesByCustomerData = useMemo(() => {
     if (!itemModal.item || !ventas?.length) return null;
     const rows = ventas.filter((row) => row.item === itemModal.item.code);
-    return buildTopCustomersByYearData(rows, 15);
+    return buildTopCustomersByYearData(rows, 10, 10);
   }, [ventas, itemModal.item]);
 
   const motives = useMemo(() => {
@@ -1929,19 +2029,20 @@ export default function App() {
                 <CardHeader>
                   <CardTitle>Ventas por cliente</CardTitle>
                   <CardDescription>
-                    Top 15 clientes por anio (ordenados de mayor a menor en cada columna).
+                    Top 10 clientes por anio (ordenados de mayor a menor). El resto se agrupa en "Otros".
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-72">
                     {salesByCustomerData ? (
-                      <Bar data={salesByCustomerData} options={stackedBarOptions} />
+                      <Bar data={salesByCustomerData} options={customerStackedOptions} />
                     ) : (
                       <div className="flex h-full items-center justify-center text-sm text-slate-400">
                         Sin datos de ventas para graficar.
                       </div>
                     )}
                   </div>
+                  <CustomerLegend items={salesByCustomerData?.legendItems} />
                 </CardContent>
               </Card>
 
@@ -1953,7 +2054,7 @@ export default function App() {
                 <CardContent>
                   <div className="h-64">
                     {salesByCatalogData ? (
-                      <Bar data={salesByCatalogData} options={stackedBarOptions} />
+                      <Bar data={salesByCatalogData} options={buildStackedBarOptions()} />
                     ) : (
                       <div className="flex h-full items-center justify-center text-sm text-slate-400">
                         Sin datos de ventas para graficar.
@@ -2252,18 +2353,19 @@ export default function App() {
           <Card className="mt-4">
             <CardHeader>
               <CardTitle>Ventas por cliente (item)</CardTitle>
-              <CardDescription>Top 15 clientes por anio para este item.</CardDescription>
+              <CardDescription>Top 10 clientes por anio para este item. El resto se agrupa en "Otros".</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-64">
                 {itemSalesByCustomerData ? (
-                  <Bar data={itemSalesByCustomerData} options={stackedBarOptions} />
+                  <Bar data={itemSalesByCustomerData} options={customerStackedOptions} />
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-slate-400">
                     Sin datos de ventas para graficar.
                   </div>
                 )}
               </div>
+              <CustomerLegend items={itemSalesByCustomerData?.legendItems} />
             </CardContent>
           </Card>
           <div className="mt-4 max-h-[260px] overflow-auto rounded-2xl border border-line">
