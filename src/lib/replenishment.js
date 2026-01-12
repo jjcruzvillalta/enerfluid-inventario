@@ -1,5 +1,5 @@
 
-import { getMovementSign } from "./data";
+import { getMovementSign, getRowsDateRange } from "./data";
 
 export const buildReplenishmentData = ({
     itemsIndex,
@@ -15,17 +15,6 @@ export const buildReplenishmentData = ({
     const items = itemsIndex.items.filter((item) => item.isCatalog && (!selectedSet || selectedSet.has(item.code)));
     if (!items.length) return { rows: [], brandRows: [] };
 
-    const getMovementsRange = (rows) => {
-        if (!rows?.length) return null;
-        let minDate = rows[0].date;
-        let maxDate = rows[0].date;
-        rows.forEach((row) => {
-            if (row.date < minDate) minDate = row.date;
-            if (row.date > maxDate) maxDate = row.date;
-        });
-        return { minDate, maxDate };
-    };
-
     const addMonths = (date, months) => {
         const next = new Date(date);
         next.setMonth(next.getMonth() + months);
@@ -40,7 +29,7 @@ export const buildReplenishmentData = ({
 
     const formatDate = (date) => date.toISOString().slice(0, 10);
 
-    const range = getMovementsRange(movements);
+    const range = getRowsDateRange(movements);
     if (!range) return { rows: [], brandRows: [] };
 
     const endDate = range.maxDate;
@@ -94,13 +83,8 @@ export const buildReplenishmentData = ({
         });
 
         const consumptionUnits = consumptionByItem.get(item.code) || 0;
-        const availableMonths = availableDays > 0 ? availableDays / 30 : 0;
-        // Fix division by zero protection and logic
-        const consumptionMonthly = availableMonths > 0.5 ? consumptionUnits / availableMonths : 0; // Require at least 0.5 month of data? Keep legacy logic.
-
-        // Legacy logic:
-        // const availableMonths = availableDays / 30;
-        // const consumptionMonthly = availableMonths > 0 ? consumptionUnits / availableMonths : 0;
+        const availableMonths = availableDays / 30;
+        const consumptionMonthly = availableMonths > 0 ? consumptionUnits / availableMonths : 0;
 
         const requiredStock = consumptionMonthly * coverageTarget;
         const monthsCoverage =

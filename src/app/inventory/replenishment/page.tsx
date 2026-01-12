@@ -1,144 +1,385 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useInventory } from "@/context/InventoryContext";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ItemDetailDialog } from "@/components/inventory/ItemDetailDialog";
 import { buildReplenishmentData } from "@/lib/replenishment";
-import { formatCurrency } from "@/lib/data";
+import { formatCurrency, formatNumber, getRowsDateRange } from "@/lib/data";
+import { X } from "lucide-react";
 
 export default function ReplenishmentPage() {
-    const {
+  const { itemsIndex, movements, ventas } = useInventory();
+
+  const [consumptionWindowMonths, setConsumptionWindowMonths] = useState(24);
+  const [targetCoverageMonths, setTargetCoverageMonths] = useState(6);
+  const [leadTimeMonths, setLeadTimeMonths] = useState(2);
+  const [bufferMonths, setBufferMonths] = useState(1);
+  const [replenishmentLimit, setReplenishmentLimit] = useState(200);
+
+  const [consumptionMotSelection, setConsumptionMotSelection] = useState(new Set());
+  const [brandModal, setBrandModal] = useState({ open: false, brand: "", rows: [] });
+  const [itemModal, setItemModal] = useState({ open: false, item: null });
+
+  const [inventoryPeriod] = useState("month");
+  const [inventoryRange, setInventoryRange] = useState({ startDate: undefined, endDate: undefined });
+
+  const formatCoverage = (value, digits = 1) =>
+    Number.isFinite(value) ? formatNumber(value, digits) : "Sin consumo";
+
+  const motives = useMemo(() => {
+    const set = new Set();
+    movements.forEach((row) => {
+      if (row.mot !== undefined) set.add(row.mot || "");
+    });
+    return Array.from(set).sort();
+  }, [movements]);
+
+  const replenishmentData = useMemo(
+    () =>
+      buildReplenishmentData({
         itemsIndex,
         movements,
-        selection, // Using selection as selectedSet
-        // Motives not in context yet? We might need to extract motives from movements or store in context. 
-        // For now, let's assume all motives.
-    } = useInventory();
+        selectedSet: null,
+        monthsWindow: Math.max(1, Number(consumptionWindowMonths) || 12),
+        targetMonths: Math.max(0, Number(targetCoverageMonths) || 0),
+        leadTimeMonths: Math.max(0, Number(leadTimeMonths) || 0),
+        bufferMonths: Math.max(0, Number(bufferMonths) || 0),
+        selectedMotives:
+          consumptionMotSelection.size && consumptionMotSelection.size !== motives.length
+            ? consumptionMotSelection
+            : null,
+      }),
+    [
+      itemsIndex,
+      movements,
+      consumptionMotSelection,
+      consumptionWindowMonths,
+      leadTimeMonths,
+      bufferMonths,
+      targetCoverageMonths,
+      motives,
+    ]
+  );
 
-    // Settings state
-    const [monthsWindow, setMonthsWindow] = useState(12);
-    const [targetCoverageMonths, setTargetCoverageMonths] = useState(12);
-    const [leadTimeMonths, setLeadTimeMonths] = useState(1.5);
-    const [bufferMonths, setBufferMonths] = useState(3);
+  const visibleReplenishmentRows = useMemo(
+    () => replenishmentData?.rows?.slice(0, replenishmentLimit) || [],
+    [replenishmentData, replenishmentLimit]
+  );
 
-    // Data processing
-    const selectedSet = useMemo(() => {
-        if (!itemsIndex || !selection || selection.size === itemsIndex.items.length) return null;
-        return selection;
-    }, [itemsIndex, selection]);
+  useEffect(() => {
+    if (!motives.length) return;
+    setConsumptionMotSelection(new Set(motives));
+  }, [motives]);
 
-    const replenishmentData = useMemo(() =>
-        buildReplenishmentData({
-            itemsIndex,
-            movements,
-            selectedSet,
-            monthsWindow,
-            targetMonths: targetCoverageMonths,
-            leadTimeMonths,
-            bufferMonths,
-            selectedMotives: null // TODO: Add motive selection support
-        }),
-        [itemsIndex, movements, selectedSet, monthsWindow, targetCoverageMonths, leadTimeMonths, bufferMonths]);
+  useEffect(() => {
+    const total = replenishmentData?.rows?.length || 0;
+    if (!total) {
+      setReplenishmentLimit(200);
+      return;
+    }
+    setReplenishmentLimit((prev) => Math.min(prev, total) || 200);
+  }, [replenishmentData]);
 
-    const rows = replenishmentData?.rows || [];
-    const brandRows = replenishmentData?.brandRows || [];
+  useEffect(() => {
+    if (!movements.length) return;
+    const range = getRowsDateRange(movements);
+    if (!range) return;
+    setInventoryRange({ startDate: range.minDate, endDate: range.maxDate });
+  }, [movements]);
 
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Reposicion</h1>
-                    <p className="text-slate-500">Calculo de compras sugeridas basado en historicos.</p>
-                </div>
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle>Necesidades de reposicion</CardTitle>
+            <CardDescription>
+              Compra cuando la cobertura cae por debajo del minimo (lead time + colchon) y repone al objetivo.
+            </CardDescription>
+          </div>
+          <div className="text-sm text-slate-500">Items catalogo {replenishmentData?.rows?.length || 0}</div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="text-xs text-slate-600">
+              Ventana de consumo (meses)
+              <Input
+                type="number"
+                min="1"
+                value={consumptionWindowMonths}
+                onChange={(event) => setConsumptionWindowMonths(event.target.value)}
+              />
+            </label>
+            <label className="text-xs text-slate-600">
+              Lead time asumido (meses)
+              <Input
+                type="number"
+                min="0"
+                step="0.1"
+                value={leadTimeMonths}
+                onChange={(event) => setLeadTimeMonths(event.target.value)}
+              />
+            </label>
+            <label className="text-xs text-slate-600">
+              Colchon (meses)
+              <Input
+                type="number"
+                min="0"
+                value={bufferMonths}
+                onChange={(event) => setBufferMonths(event.target.value)}
+              />
+            </label>
+            <label className="text-xs text-slate-600">
+              Objetivo de cobertura (meses)
+              <Input
+                type="number"
+                min="1"
+                value={targetCoverageMonths}
+                onChange={(event) => setTargetCoverageMonths(event.target.value)}
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-mist px-4 py-3 text-xs text-slate-600">
+            <span>
+              Minimo para comprar:{" "}
+              <strong>{formatNumber(replenishmentData?.minCoverageMonths ?? 0, 1)} meses</strong>
+            </span>
+            <span className="text-slate-400">|</span>
+            <span>
+              Lead time: <strong>{formatNumber(replenishmentData?.leadTimeMonths ?? 0, 1)} meses</strong>
+            </span>
+            <span className="text-slate-400">|</span>
+            <span>
+              Objetivo: <strong>{formatNumber(replenishmentData?.coverageTarget ?? 0, 1)} meses</strong>
+            </span>
+          </div>
+          <div className="rounded-2xl border border-line p-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span className="font-semibold">Motivos de consumo</span>
+              <Button size="sm" variant="ghost" onClick={() => setConsumptionMotSelection(new Set(motives))}>
+                Todos
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConsumptionMotSelection(new Set())}>
+                Ninguno
+              </Button>
             </div>
-
-            {/* Params Card */}
-            <Card className="p-4 grid gap-4 md:grid-cols-4">
-                <div>
-                    <label className="text-xs font-semibold text-slate-500">Ventana Historica (Meses)</label>
-                    <Input type="number" value={monthsWindow} onChange={e => setMonthsWindow(Number(e.target.value))} />
-                </div>
-                <div>
-                    <label className="text-xs font-semibold text-slate-500">Cobertura Objetivo (Meses)</label>
-                    <Input type="number" value={targetCoverageMonths} onChange={e => setTargetCoverageMonths(Number(e.target.value))} />
-                </div>
-                <div>
-                    <label className="text-xs font-semibold text-slate-500">Lead Time (Meses)</label>
-                    <Input type="number" value={leadTimeMonths} onChange={e => setLeadTimeMonths(Number(e.target.value))} />
-                </div>
-                <div>
-                    <label className="text-xs font-semibold text-slate-500">Buffer (Meses)</label>
-                    <Input type="number" value={bufferMonths} onChange={e => setBufferMonths(Number(e.target.value))} />
-                </div>
-            </Card>
-
-            <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-
-                {/* Items Table */}
-                <Card className="p-4 overflow-hidden">
-                    <h3 className="font-semibold mb-4">Detalle por Item</h3>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b">
-                                <tr>
-                                    <th className="px-3 py-2">Codigo</th>
-                                    <th className="px-3 py-2">Stock</th>
-                                    <th className="px-3 py-2">Consumo Mes</th>
-                                    <th className="px-3 py-2">Cobertura</th>
-                                    <th className="px-3 py-2 text-right">Sugerido</th>
-                                    <th className="px-3 py-2 text-right">Costo Est.</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {rows.slice(0, 50).map((row) => (
-                                    <tr key={row.code} className={`hover:bg-slate-50 ${row.shouldBuy ? 'bg-blue-50/30' : ''}`}>
-                                        <td className="px-3 py-2 font-medium">{row.code} <div className="text-[10px] text-slate-400 truncate w-32">{row.desc}</div></td>
-                                        <td className="px-3 py-2">{row.stockCurrent.toFixed(0)}</td>
-                                        <td className="px-3 py-2">{row.consumptionMonthly.toFixed(1)}</td>
-                                        <td className="px-3 py-2">
-                                            <Badge variant={row.monthsCoverage < row.minCoverageMonths ? "destructive" : "outline"}>
-                                                {Number.isFinite(row.monthsCoverage) ? row.monthsCoverage.toFixed(1) : "Inf"} m
-                                            </Badge>
-                                        </td>
-                                        <td className="px-3 py-2 text-right font-bold text-blue-600">
-                                            {row.qtyToBuy > 0 ? formatCurrency(row.qtyToBuy).replace('$', '') : '-'}
-                                        </td>
-                                        <td className="px-3 py-2 text-right text-slate-600">
-                                            {row.qtyToBuy > 0 ? formatCurrency(row.costEstimate) : '-'}
-                                        </td>
-                                    </tr>
-                                ))}
-                                {rows.length === 0 && (
-                                    <tr><td colSpan={6} className="p-4 text-center text-slate-400">Sin datos</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                    {rows.length > 50 && <div className="p-2 text-center text-xs text-slate-400">Mostrando primeros 50 de {rows.length} items</div>}
-                </Card>
-
-                {/* Brand Summary */}
-                <Card className="p-4 h-fit">
-                    <h3 className="font-semibold mb-4">Resumen por Marca</h3>
-                    <div className="space-y-3">
-                        {brandRows.map((brand) => (
-                            <div key={brand.brand} className="flex items-center justify-between text-sm border-b pb-2 last:border-0">
-                                <div>
-                                    <p className="font-medium">{brand.brand}</p>
-                                    <p className="text-xs text-slate-500">{brand.items} items a pedir</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-bold text-slate-700">{formatCurrency(brand.cost)}</p>
-                                    <p className="text-xs text-slate-500">{brand.qty.toLocaleString()} unid.</p>
-                                </div>
-                            </div>
-                        ))}
-                        {brandRows.length === 0 && <p className="text-sm text-slate-400">Sin sugerencias de compra.</p>}
-                    </div>
-                </Card>
+            <div className="mt-2 flex flex-wrap gap-3">
+              {motives.map((mot) => (
+                <label key={mot || "(vacio)"} className="flex items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={consumptionMotSelection.has(mot)}
+                    onChange={(event) => {
+                      setConsumptionMotSelection((prev) => {
+                        const next = new Set(prev);
+                        if (event.target.checked) next.add(mot);
+                        else next.delete(mot);
+                        return next;
+                      });
+                    }}
+                  />
+                  {mot || "(Sin motivo)"}
+                </label>
+              ))}
             </div>
-        </div>
-    );
+          </div>
+          <div className="max-h-[420px] overflow-auto rounded-2xl border border-line">
+            <table className="w-full text-xs">
+              <thead className="bg-mist text-[11px] uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 text-left">Item</th>
+                  <th className="px-3 py-2 text-left">Descripcion</th>
+                  <th className="px-3 py-2 text-left">Marca</th>
+                  <th className="px-3 py-2 text-left">Stock actual</th>
+                  <th className="px-3 py-2 text-left">Consumo (u)</th>
+                  <th className="px-3 py-2 text-left">Meses con stock</th>
+                  <th className="px-3 py-2 text-left">Consumo mensual</th>
+                  <th className="px-3 py-2 text-left">Meses cobertura</th>
+                  <th className="px-3 py-2 text-left">Min cobertura</th>
+                  <th className="px-3 py-2 text-left">Comprar</th>
+                  <th className="px-3 py-2 text-left">Reponer (u)</th>
+                  <th className="px-3 py-2 text-left">Costo estimado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleReplenishmentRows.map((row) => (
+                  <tr key={row.code} className="border-t border-slate-100">
+                    <td className="px-3 py-2">{row.code}</td>
+                    <td className="px-3 py-2">{row.desc || "-"}</td>
+                    <td className="px-3 py-2">{row.brand || "-"}</td>
+                    <td className="px-3 py-2">{formatNumber(row.stockCurrent)}</td>
+                    <td className="px-3 py-2">{formatNumber(row.consumptionUnits)}</td>
+                    <td className="px-3 py-2">
+                      {formatCoverage(row.availableMonths, 1)}
+                    </td>
+                    <td className="px-3 py-2">{formatNumber(row.consumptionMonthly, 2)}</td>
+                    <td className="px-3 py-2">
+                      {formatCoverage(row.monthsCoverage, 1)}
+                    </td>
+                    <td className="px-3 py-2">{formatNumber(row.minCoverageMonths, 1)}</td>
+                    <td className="px-3 py-2">
+                      {row.shouldBuy ? (
+                        <Badge variant="outline" className="text-amber-600">
+                          Comprar
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-slate-400">
+                          Ok
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">{formatNumber(row.qtyToBuy)}</td>
+                    <td className="px-3 py-2">{formatCurrency(row.costEstimate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {replenishmentData?.rows?.length > visibleReplenishmentRows.length && (
+            <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+              <span>
+                Mostrando {visibleReplenishmentRows.length} de {replenishmentData.rows.length} items
+              </span>
+              <Button size="sm" variant="outline" onClick={() => setReplenishmentLimit((prev) => prev + 200)}>
+                Ver mas
+              </Button>
+            </div>
+          )}
+          {!replenishmentData?.rows?.length && (
+            <p className="text-sm text-slate-400">Sin datos para calcular reposicion.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Resumen por marca</CardTitle>
+            <CardDescription>Agrupado por costo estimado con ultimo costo.</CardDescription>
+          </div>
+          <div className="text-sm text-slate-500">Marcas {replenishmentData?.brandRows?.length || 0}</div>
+        </CardHeader>
+        <CardContent>
+          <div className="max-h-[320px] overflow-auto rounded-2xl border border-line">
+            <table className="w-full text-xs">
+              <thead className="bg-mist text-[11px] uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 text-left">Marca</th>
+                  <th className="px-3 py-2 text-left">Items</th>
+                  <th className="px-3 py-2 text-left">Reponer (u)</th>
+                  <th className="px-3 py-2 text-left">Costo estimado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {replenishmentData?.brandRows?.map((row) => (
+                  <tr
+                    key={row.brand}
+                    className="cursor-pointer border-t border-slate-100 hover:bg-mist"
+                    onClick={() =>
+                      setBrandModal({
+                        open: true,
+                        brand: row.brand,
+                        rows: replenishmentData.rows.filter((item) => item.brand === row.brand),
+                      })
+                    }
+                  >
+                    <td className="px-3 py-2">{row.brand}</td>
+                    <td className="px-3 py-2">{formatNumber(row.items)}</td>
+                    <td className="px-3 py-2">{formatNumber(row.qty)}</td>
+                    <td className="px-3 py-2">{formatCurrency(row.cost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!replenishmentData?.brandRows?.length && <p className="text-sm text-slate-400">Sin marcas para mostrar.</p>}
+        </CardContent>
+      </Card>
+
+      <Dialog open={brandModal.open} onOpenChange={(open) => setBrandModal((prev) => ({ ...prev, open }))}>
+        <DialogContent className="w-[96vw] max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogClose asChild>
+            <button
+              type="button"
+              className="absolute right-4 top-4 rounded-full border border-line bg-white p-1 text-slate-500 shadow-sm hover:text-slate-700"
+              aria-label="Cerrar"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </DialogClose>
+          <DialogHeader>
+            <DialogTitle>Detalle de marca: {brandModal.brand}</DialogTitle>
+            <p className="text-sm text-slate-500">
+              Ventana: {replenishmentData?.monthsWindow || "-"} meses | Lead time: {formatNumber(replenishmentData?.leadTimeMonths ?? 0, 1)} meses | Min: {formatNumber(replenishmentData?.minCoverageMonths ?? 0, 1)} meses | Objetivo: {formatNumber(replenishmentData?.coverageTarget ?? 0, 1)} meses
+            </p>
+          </DialogHeader>
+          <div className="mt-4 max-h-[60vh] overflow-auto rounded-2xl border border-line">
+            <table className="w-full text-xs">
+              <thead className="bg-mist text-[11px] uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 text-left">Item</th>
+                  <th className="px-3 py-2 text-left">Descripcion</th>
+                  <th className="px-3 py-2 text-left">Stock actual</th>
+                  <th className="px-3 py-2 text-left">Consumo (u)</th>
+                  <th className="px-3 py-2 text-left">Meses con stock</th>
+                  <th className="px-3 py-2 text-left">Consumo mensual</th>
+                  <th className="px-3 py-2 text-left">Meses cobertura</th>
+                  <th className="px-3 py-2 text-left">Reponer (u)</th>
+                  <th className="px-3 py-2 text-left">Costo estimado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {brandModal.rows?.map((row) => (
+                  <tr
+                    key={row.code}
+                    className="cursor-pointer border-t border-slate-100 hover:bg-mist"
+                    onClick={() =>
+                      setItemModal({
+                        open: true,
+                        item:
+                          itemsIndex?.items?.find((item) => item.code === row.code) || {
+                            code: row.code,
+                            desc: row.desc,
+                          },
+                      })
+                    }
+                  >
+                    <td className="px-3 py-2">{row.code}</td>
+                    <td className="px-3 py-2">{row.desc || "-"}</td>
+                    <td className="px-3 py-2">{formatNumber(row.stockCurrent)}</td>
+                    <td className="px-3 py-2">{formatNumber(row.consumptionUnits)}</td>
+                    <td className="px-3 py-2">
+                      {formatCoverage(row.availableMonths, 1)}
+                    </td>
+                    <td className="px-3 py-2">{formatNumber(row.consumptionMonthly, 2)}</td>
+                    <td className="px-3 py-2">
+                      {formatCoverage(row.monthsCoverage, 1)}
+                    </td>
+                    <td className="px-3 py-2">{formatNumber(row.qtyToBuy)}</td>
+                    <td className="px-3 py-2">{formatCurrency(row.costEstimate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!brandModal.rows?.length && <p className="mt-3 text-sm text-slate-400">Sin items para esta marca.</p>}
+        </DialogContent>
+      </Dialog>
+
+      <ItemDetailDialog
+        open={itemModal.open}
+        onOpenChange={(open) => setItemModal((prev) => ({ ...prev, open }))}
+        item={itemModal.item}
+        movements={movements}
+        ventas={ventas}
+        inventoryPeriod={inventoryPeriod}
+        inventoryRange={inventoryRange}
+      />
+    </div>
+  );
 }

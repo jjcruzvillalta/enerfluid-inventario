@@ -1,51 +1,36 @@
-# Enerfluid Inventario
+# Enerfluid Apps
 
-Panel de analisis y reposicion basado en datos cargados desde Excel y almacenados en Supabase.
+Suite de aplicaciones internas con un portal central: Inventario, CRM y Usuarios.
+
+## Que hace
+- Portal central para acceder a todas las apps.
+- Autenticacion propia (usuario/clave) y roles por app.
+- Inventario: carga Excel, analisis, detalle por item, reposicion.
+- CRM: dashboard, clientes, contactos, oportunidades, actividades y configuracion.
+- Usuarios: alta, edicion y baja de usuarios con roles por app.
 
 ## Requisitos
-
-- Node.js 20+
-- Proyecto Supabase configurado (tablas, auth y Edge Function `upload-excel`)
+- Node.js 18+ (recomendado 18.18 o 20.x)
+- Supabase project configurado (solo DB, sin Supabase Auth).
 
 ## Configuracion
-
-1) Edita `public/supabase-config.js`:
-   - `url`: Project URL de Supabase
-   - `anonKey`: anon public key
-
-2) En Supabase:
-   - Crea el usuario en Auth (email/password).
-   - Asegura la Edge Function `upload-excel` con sus secrets.
-
-## Desarrollo local
-
-```bash
-npm install
-npm run dev
+Crear `.env.local`:
+```
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
-## Build
+Nota: el acceso a la DB se hace desde API routes con `SUPABASE_SERVICE_ROLE_KEY`.
 
-```bash
-npm run build
-npm run preview
-```
-
-## Flujo de uso
-
-1) Inicia sesion en la app.
-2) Sube los Excel en la pestaña de carga.
-3) Revisa analisis y reposicion.
-
-## Reposicion (resumen)
-
-- Consumo mensual basado en egresos dentro de la ventana seleccionada.
-- Minimo de compra = lead time (meses) + colchon.
-- Si cobertura <= minimo, compra para llegar al objetivo (meses).
-
-## CI
-
-GitHub Actions ejecuta:
-- `npm run lint`
-- `npm run test`
+## Scripts
+- `npm run dev`
 - `npm run build`
+- `npm run lint`
+
+## Documentacion
+- `docs/SETUP.md`
+- `docs/FEATURES.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SUPABASE.md`
+- `docs/SUPABASE_SNAPSHOT.md`
+- `AGENTS.md`

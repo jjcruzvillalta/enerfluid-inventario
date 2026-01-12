@@ -5,27 +5,24 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
-    const [email, setEmail] = useState("");
+    const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [status, setStatus] = useState("No autenticado");
     const router = useRouter();
+    const { login } = useAuth();
 
     const onLogin = async () => {
-        setStatus("Autenticando...");
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
-
-        if (error) {
-            console.error(error);
-            setStatus("Error: " + error.message);
-        } else {
+        try {
+            setStatus("Autenticando...");
+            await login(username, password);
             setStatus("Autenticado");
-            router.push("/inventory");
+            router.push("/");
+        } catch (error) {
+            console.error(error);
+            setStatus("Error al autenticar");
         }
     };
 
@@ -35,7 +32,7 @@ export default function LoginPage() {
                 <div
                     className="relative hidden overflow-hidden md:flex flex-col justify-between p-10 text-white"
                     style={{
-                        backgroundImage: "url(/login-hero.png)", // Ensure this image exists in public or adapt
+                        backgroundImage: "url(/login-hero.png)",
                         backgroundRepeat: "no-repeat",
                         backgroundSize: "cover",
                         backgroundPosition: "center",
@@ -43,21 +40,20 @@ export default function LoginPage() {
                 >
                     <div className="absolute inset-0 bg-gradient-to-br from-navy/70 via-slate-900/55 to-ink/45" />
                     <div className="relative z-10">
-                        <p className="text-xs uppercase tracking-[0.25em] text-white/70">Enerfluid</p>
-                        <p className="text-lg font-semibold">Inventario Inteligente</p>
+                        <p className="text-xs uppercase tracking-[0.25em] text-white/70">Enerfluid Apps</p>
+                        <p className="text-lg font-semibold">Portal interno</p>
                     </div>
                     <div className="relative z-10">
                         <h2 className="text-2xl font-semibold leading-tight">
-                            Gestiona inventario y catalogo en un solo panel.
+                            Accede al portal de aplicaciones internas.
                         </h2>
                         <p className="mt-3 text-sm text-white/70">
-                            Accede con tu usuario autorizado y carga los archivos de manera segura.
+                            Usa tu usuario autorizado para entrar a Inventario, CRM y Usuarios.
                         </p>
                     </div>
                 </div>
                 <div className="p-8 md:p-10">
                     <div className="flex items-center gap-3">
-                        {/* Ensure logo exists */}
                         <img src="/enerfluid-logo.png" alt="Enerfluid" className="h-9" />
                     </div>
                     <div className="mt-5 space-y-2">
@@ -66,11 +62,11 @@ export default function LoginPage() {
                     </div>
                     <div className="mt-6 space-y-4">
                         <label className="block text-sm text-slate-600">
-                            Email
+                            Usuario
                             <Input
-                                value={email}
-                                onChange={(event) => setEmail(event.target.value)}
-                                placeholder="tu@correo.com"
+                                value={username}
+                                onChange={(event) => setUsername(event.target.value)}
+                                placeholder="usuario"
                             />
                         </label>
                         <label className="block text-sm text-slate-600">

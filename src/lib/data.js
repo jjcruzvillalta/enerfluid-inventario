@@ -1,5 +1,28 @@
 import * as XLSX from "xlsx";
 
+export const palette = [
+  "#1f6feb",
+  "#60a5fa",
+  "#34d399",
+  "#fbbf24",
+  "#f87171",
+  "#94a3b8",
+  "#38bdf8",
+  "#f97316",
+  "#a855f7",
+];
+
+const hashKey = (value) => {
+  const text = String(value || "");
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+};
+
+export const colorForKey = (value) => palette[hashKey(value) % palette.length];
+
 export const toNumber = (value) => {
   if (value === null || value === undefined || value === "") return NaN;
   if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
@@ -44,6 +67,21 @@ export const normalizeText = (value) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim();
+
+export const formatDate = (date) => date.toISOString().slice(0, 10);
+
+export const formatDateTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("es-EC", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 
 export const parseExcelDate = (value) => {
   if (!value) return null;
@@ -279,6 +317,9 @@ export const formatCurrency = (value) => {
   });
 };
 
+export const formatNumber = (value, digits = 0) =>
+  Number.isFinite(value) ? value.toLocaleString("es-EC", { maximumFractionDigits: digits }) : "-";
+
 export const buildPoints = (dates, values) =>
   (dates || []).map((date, index) => ({
     x: date,
@@ -340,6 +381,142 @@ export const buildCatalogShare = (itemsIndex, selectedSet) => {
   return {
     labels: ["Catalogo", "No catalogo"],
     values: [catalogValue, nonCatalogValue],
+  };
+};
+
+export const buildCatalogLookup = (itemsIndex, catalogIndex) => {
+  const map = new Map();
+  if (itemsIndex?.items?.length) {
+    itemsIndex.items.forEach((item) => {
+      map.set(item.code, item.isCatalog);
+    });
+  }
+  if (catalogIndex?.size) {
+    catalogIndex.forEach((_value, code) => {
+      map.set(code, true);
+    });
+  }
+  return map;
+};
+
+export const buildTopCustomersByYearData = (rows, maxTop = 10, legendTop = 10) => {
+  if (!rows?.length) return null;
+  const byYear = new Map();
+  const totalsByCustomer = new Map();
+  rows.forEach((row) => {
+    const year = row.date instanceof Date ? row.date.getFullYear() : NaN;
+    if (!Number.isFinite(year)) return;
+    const value = Number.isFinite(row.ventaBruta) ? row.ventaBruta : 0;
+    if (!value) return;
+    const customer = row.persona || "Sin cliente";
+    const yearMap = byYear.get(year) || new Map();
+    yearMap.set(customer, (yearMap.get(customer) || 0) + value);
+    byYear.set(year, yearMap);
+  });
+
+  if (!byYear.size) return null;
+
+  const years = Array.from(byYear.keys()).sort((a, b) => a - b);
+  const topEntriesByYear = new Map();
+  let hasOthers = false;
+  years.forEach((year) => {
+    const entries = Array.from(byYear.get(year).entries()).sort((a, b) => b[1] - a[1]);
+    const topEntries = entries.slice(0, maxTop);
+    const othersTotal = entries.slice(maxTop).reduce((sum, entry) => sum + entry[1], 0);
+    topEntriesByYear.set(year, topEntries);
+    topEntries.forEach(([customer, value]) => {
+      totalsByCustomer.set(customer, (totalsByCustomer.get(customer) || 0) + value);
+    });
+    if (othersTotal > 0) hasOthers = true;
+  });
+
+  const legendItems = Array.from(totalsByCustomer.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, legendTop)
+    .map(([customer]) => ({ label: customer, color: colorForKey(customer) }));
+
+  if (hasOthers) legendItems.push({ label: "Otros", color: palette[5] });
+
+  const datasets = [];
+  if (hasOthers) {
+    const othersData = years.map((year) => {
+      const entries = Array.from(byYear.get(year).entries()).sort((a, b) => b[1] - a[1]);
+      return entries.slice(maxTop).reduce((sum, entry) => sum + entry[1], 0);
+    });
+    datasets.push({
+      label: "Otros",
+      data: othersData,
+      backgroundColor: palette[5],
+      stack: "ventas",
+    });
+  }
+
+  for (let rank = maxTop - 1; rank >= 0; rank -= 1) {
+    const customerByYear = {};
+    const data = [];
+    const colors = [];
+    years.forEach((year) => {
+      const entry = topEntriesByYear.get(year)?.[rank];
+      if (!entry) {
+        data.push(0);
+        colors.push("rgba(0, 0, 0, 0)");
+        return;
+      }
+      const [customer, value] = entry;
+      customerByYear[String(year)] = customer;
+      data.push(value);
+      colors.push(colorForKey(customer));
+    });
+    datasets.push({
+      label: `Top ${rank + 1}`,
+      data,
+      customerByYear,
+      backgroundColor: colors,
+      stack: "ventas",
+    });
+  }
+
+  return {
+    labels: years.map(String),
+    datasets,
+    legendItems,
+  };
+};
+
+export const buildSalesByCatalogData = (rows, catalogLookup) => {
+  if (!rows?.length) return null;
+  const byYear = new Map();
+
+  rows.forEach((row) => {
+    const year = row.date instanceof Date ? row.date.getFullYear() : NaN;
+    if (!Number.isFinite(year)) return;
+    const value = Number.isFinite(row.ventaBruta) ? row.ventaBruta : 0;
+    if (!value) return;
+    const isCatalog = catalogLookup?.get(row.item) === true;
+    const yearMap = byYear.get(year) || { catalogo: 0, noCatalogo: 0 };
+    if (isCatalog) yearMap.catalogo += value;
+    else yearMap.noCatalogo += value;
+    byYear.set(year, yearMap);
+  });
+
+  if (!byYear.size) return null;
+  const years = Array.from(byYear.keys()).sort((a, b) => a - b);
+  return {
+    labels: years.map(String),
+    datasets: [
+      {
+        label: "Catalogo",
+        data: years.map((year) => byYear.get(year)?.catalogo || 0),
+        backgroundColor: palette[0],
+        stack: "ventas",
+      },
+      {
+        label: "No catalogo",
+        data: years.map((year) => byYear.get(year)?.noCatalogo || 0),
+        backgroundColor: palette[4],
+        stack: "ventas",
+      },
+    ],
   };
 };
 

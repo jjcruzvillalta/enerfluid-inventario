@@ -1,5 +1,5 @@
 {
-  "name": "enerfluid-inventory-prime",
+  "name": "enerfluid-apps",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "db:pull": "supabase db pull",
-    "db:types": "supabase gen types typescript --local > src/types/supabase.ts"
+    "db:types": "supabase gen types typescript --local > src/types/supabase.ts",
+    "db:snapshot": "supabase db dump --schema-only --file supabase/schema.sql"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.1",
@@ -21,6 +22,7 @@
     "@radix-ui/react-slot": "^1.0.2",
     "@radix-ui/react-tabs": "^1.0.4",
     "@supabase/supabase-js": "^2.49.1",
+    "bcryptjs": "^2.4.3",
     "chart.js": "^4.4.1",
     "chartjs-adapter-date-fns": "^3.0.0",
     "class-variance-authority": "^0.7.0",

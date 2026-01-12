@@ -2,6 +2,7 @@
 
 import { useInventory } from "@/context/InventoryContext";
 import { UploadCard } from "@/components/inventory/UploadCard";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function UploadPage() {
     const {
@@ -45,48 +46,64 @@ export default function UploadPage() {
                 <p className="text-slate-500">Gestiona la actualizacion de datos.</p>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-                <UploadCard
-                    title="Movimientos"
-                    fileName={uploadFiles.movimientos?.name}
-                    dbStatus={dbStatusMap.movements}
-                    updatedAt={getUpdatedAt("movimientos")}
-                    status={uploadStatus.movimientos}
-                    uploading={uploadLoading.movimientos}
-                    onSelect={(e) => handleFileSelect("movimientos", e)}
-                    onUpload={() => handleUpload("movimientos")}
-                />
-                <UploadCard
-                    title="Ventas"
-                    fileName={uploadFiles.ventas?.name}
-                    dbStatus={dbStatusMap.ventas}
-                    updatedAt={getUpdatedAt("ventas")}
-                    status={uploadStatus.ventas}
-                    uploading={uploadLoading.ventas}
-                    onSelect={(e) => handleFileSelect("ventas", e)}
-                    onUpload={() => handleUpload("ventas")}
-                />
-                <UploadCard
-                    title="Items"
-                    fileName={uploadFiles.items?.name}
-                    dbStatus={dbStatusMap.items}
-                    updatedAt={getUpdatedAt("items")}
-                    status={uploadStatus.items}
-                    uploading={uploadLoading.items}
-                    onSelect={(e) => handleFileSelect("items", e)}
-                    onUpload={() => handleUpload("items")}
-                />
-                <UploadCard
-                    title="Catalogo"
-                    fileName={uploadFiles.catalogo?.name}
-                    dbStatus={dbStatusMap.catalogo}
-                    updatedAt={getUpdatedAt("catalogo")}
-                    status={uploadStatus.catalogo}
-                    uploading={uploadLoading.catalogo}
-                    onSelect={(e) => handleFileSelect("catalogo", e)}
-                    onUpload={() => handleUpload("catalogo")}
-                />
-            </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Carga de Excel</CardTitle>
+                    <CardDescription>Cada carga reemplaza completamente los datos anteriores en Supabase.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="rounded-2xl border border-line bg-mist/40 p-4 text-sm text-slate-600">
+                        <p className="font-semibold text-slate-700">Como funciona la carga</p>
+                        <p className="mt-1">
+                            El navegador lee el Excel, lo convierte a filas y las envia en lotes al servidor.
+                            En el primer lote se borra la tabla y luego se insertan los datos.
+                            Si cierras la pagina o falla un lote, vuelve a subir el archivo.
+                        </p>
+                    </div>
+                    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+                        <UploadCard
+                            title="Movimientos de inventario"
+                            fileName={uploadFiles.movimientos?.name}
+                            dbStatus={dbStatusMap.movements}
+                            updatedAt={getUpdatedAt("movimientos")}
+                            status={uploadStatus.movimientos}
+                            uploading={uploadLoading.movimientos}
+                            onSelect={(e) => handleFileSelect("movimientos", e)}
+                            onUpload={() => handleUpload("movimientos")}
+                        />
+                        <UploadCard
+                            title="Ventas"
+                            fileName={uploadFiles.ventas?.name}
+                            dbStatus={dbStatusMap.ventas}
+                            updatedAt={getUpdatedAt("ventas")}
+                            status={uploadStatus.ventas}
+                            uploading={uploadLoading.ventas}
+                            onSelect={(e) => handleFileSelect("ventas", e)}
+                            onUpload={() => handleUpload("ventas")}
+                        />
+                        <UploadCard
+                            title="Listado de items (costos y stock)"
+                            fileName={uploadFiles.items?.name}
+                            dbStatus={dbStatusMap.items}
+                            updatedAt={getUpdatedAt("items")}
+                            status={uploadStatus.items}
+                            uploading={uploadLoading.items}
+                            onSelect={(e) => handleFileSelect("items", e)}
+                            onUpload={() => handleUpload("items")}
+                        />
+                        <UploadCard
+                            title="Catalogo Enerfluid (SKU + marca)"
+                            fileName={uploadFiles.catalogo?.name}
+                            dbStatus={dbStatusMap.catalogo}
+                            updatedAt={getUpdatedAt("catalogo")}
+                            status={uploadStatus.catalogo}
+                            uploading={uploadLoading.catalogo}
+                            onSelect={(e) => handleFileSelect("catalogo", e)}
+                            onUpload={() => handleUpload("catalogo")}
+                        />
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

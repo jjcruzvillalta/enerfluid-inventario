@@ -1,23 +1,26 @@
 
 import type { Metadata } from "next";
-import { Inter } from "next/font/google"; // Using Inter as a standard font, similar to current
+import { Inter } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/context/AuthContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-    title: "Enerfluid Apps",
-    description: "Plataforma integral de Enerfluid",
+  title: "Enerfluid Apps",
+  description: "Plataforma integral de Enerfluid",
 };
 
 export default function RootLayout({
-    children,
+  children,
 }: Readonly<{
-    children: React.ReactNode;
+  children: React.ReactNode;
 }>) {
-    return (
-        <html lang="es">
-            <body className={inter.className}>{children}</body>
-        </html>
-    );
+  return (
+    <html lang="es">
+      <body className={inter.className}>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
+    </html>
+  );
 }

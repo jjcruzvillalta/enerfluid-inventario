@@ -1,34 +1,69 @@
+"use client";
+
 import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
-export default function Home() {
+const apps = [
+  { key: "inventory", title: "Inventario", description: "Carga, analisis y reposicion.", href: "/inventory" },
+  { key: "crm", title: "CRM", description: "Clientes, contactos y oportunidades.", href: "/crm" },
+  { key: "users", title: "Usuarios", description: "Gestion centralizada de accesos.", href: "/users" },
+];
+
+export default function PortalPage() {
+  const { user, loading, canAccess } = useAuth();
+
+  if (loading) {
+    return <div className="flex min-h-screen items-center justify-center">Cargando...</div>;
+  }
+
+  if (!user) {
     return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-slate-50">
-            <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-                <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-                    Enerfluid Apps
-                </p>
-            </div>
-
-            <div className="relative flex place-items-center  before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 z-[-1]">
-                <h1 className="text-4xl font-bold text-slate-900 mb-8">Bienvenido</h1>
-            </div>
-
-            <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-                <Link
-                    href="/inventory"
-                    className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-                >
-                    <h2 className={`mb-3 text-2xl font-semibold`}>
-                        Inventario{" "}
-                        <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-                            -&gt;
-                        </span>
-                    </h2>
-                    <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-                        Gestion de inventario, catalogo y reportes.
-                    </p>
-                </Link>
-            </div>
-        </main>
+      <div className="flex min-h-screen items-center justify-center bg-cloud">
+        <Card className="p-6 text-center">
+          <h1 className="text-2xl font-semibold text-slate-800">Enerfluid Apps</h1>
+          <p className="mt-2 text-sm text-slate-500">Inicia sesion para acceder al portal.</p>
+          <Button className="mt-4" asChild>
+            <Link href="/login">Ir a login</Link>
+          </Button>
+        </Card>
+      </div>
     );
+  }
+
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-white via-cloud to-mist px-6 py-10">
+      <div className="mx-auto max-w-6xl space-y-8">
+        <div>
+          <p className="text-sm text-slate-500">Bienvenido, {user.displayName || user.username}</p>
+          <h1 className="text-3xl font-semibold text-slate-900">Enerfluid Apps</h1>
+          <p className="text-sm text-slate-500">Portal de acceso a todas las aplicaciones.</p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          {apps.map((app) => {
+            const enabled = canAccess(app.key, "standard");
+            return (
+              <Card key={app.key} className="flex flex-col justify-between p-6 shadow-soft">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-800">{app.title}</h2>
+                  <p className="mt-2 text-sm text-slate-500">{app.description}</p>
+                </div>
+                {enabled ? (
+                  <Button className="mt-6" asChild>
+                    <Link href={app.href}>Abrir</Link>
+                  </Button>
+                ) : (
+                  <Button className="mt-6" variant="outline" disabled>
+                    Sin acceso
+                  </Button>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+    </main>
+  );
 }
