@@ -24,6 +24,7 @@ import {
   PointElement,
   TimeScale,
   Tooltip,
+  type ChartOptions,
 } from "chart.js";
 import "chartjs-adapter-date-fns";
 import {
@@ -103,7 +104,7 @@ const getSelectedSet = (itemsIndex, selection) => {
   return selection;
 };
 
-const buildLineOptions = (period, labelFormatter) => ({
+const buildLineOptions = (period, labelFormatter): ChartOptions<"line"> => ({
   responsive: true,
   maintainAspectRatio: false,
   interaction: { mode: "index", intersect: false },
