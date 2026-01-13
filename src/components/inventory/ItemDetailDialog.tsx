@@ -144,7 +144,8 @@ export const ItemDetailDialog = ({
     return buildSeriesForItems({
       movements,
       period: inventoryPeriod,
-      ...inventoryRange,
+      startDate: inventoryRange.startDate,
+      endDate: inventoryRange.endDate,
       itemsSet: new Set([item.code]),
     });
   }, [item, movements, inventoryPeriod, inventoryRange]);
@@ -154,7 +155,8 @@ export const ItemDetailDialog = ({
     return buildSalesPriceSeriesForItems({
       ventasRows: ventas,
       period: inventoryPeriod,
-      ...inventoryRange,
+      startDate: inventoryRange.startDate,
+      endDate: inventoryRange.endDate,
       itemsSet: new Set([item.code]),
     });
   }, [item, ventas, inventoryPeriod, inventoryRange]);
@@ -164,7 +166,8 @@ export const ItemDetailDialog = ({
     return buildCostSeriesForItems({
       movements,
       period: inventoryPeriod,
-      ...inventoryRange,
+      startDate: inventoryRange.startDate,
+      endDate: inventoryRange.endDate,
       itemsSet: new Set([item.code]),
     });
   }, [item, movements, inventoryPeriod, inventoryRange]);
