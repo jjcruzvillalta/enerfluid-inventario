@@ -5,7 +5,16 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-const defaultRoles = {
+type RoleMap = Record<string, string>;
+
+type UserRow = {
+  id: string;
+  username: string;
+  display_name?: string | null;
+  roles?: RoleMap;
+};
+
+const defaultRoles: RoleMap = {
   portal: "standard",
   inventory: "standard",
   crm: "standard",
@@ -13,15 +22,20 @@ const defaultRoles = {
 };
 
 export default function UsersPage() {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    username: string;
+    displayName: string;
+    password: string;
+    roles: RoleMap;
+  }>({
     username: "",
     displayName: "",
     password: "",
     roles: { ...defaultRoles },
   });
-  const [editingId, setEditingId] = useState(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -62,14 +76,14 @@ export default function UsersPage() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: string) => {
     const confirmDelete = window.confirm("Eliminar usuario?");
     if (!confirmDelete) return;
     const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
     if (res.ok) loadUsers();
   };
 
-  const startEdit = (user) => {
+  const startEdit = (user: UserRow) => {
     setEditingId(user.id);
     setForm({
       username: user.username,
@@ -152,7 +166,7 @@ export default function UsersPage() {
                   <td className="px-3 py-2 font-medium text-slate-800">{row.username}</td>
                   <td className="px-3 py-2">{row.display_name}</td>
                   <td className="px-3 py-2 text-xs text-slate-600">
-                    {Object.entries(row.roles || {}).map(([key, value]) => (
+                    {Object.entries(row.roles ?? {}).map(([key, value]) => (
                       <span key={key} className="mr-2 inline-flex rounded-full border px-2 py-0.5">
                         {key}:{value}
                       </span>
