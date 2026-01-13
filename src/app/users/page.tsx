@@ -15,10 +15,10 @@ type UserRow = {
 };
 
 const defaultRoles: RoleMap = {
-  portal: "standard",
-  inventory: "standard",
-  crm: "standard",
-  users: "standard",
+  portal: "none",
+  inventory: "none",
+  crm: "none",
+  users: "none",
 };
 
 export default function UsersPage() {
@@ -129,6 +129,7 @@ export default function UsersPage() {
                   }))
                 }
               >
+                <option value="none">none</option>
                 <option value="standard">standard</option>
                 <option value="admin">admin</option>
               </select>
@@ -166,11 +167,14 @@ export default function UsersPage() {
                   <td className="px-3 py-2 font-medium text-slate-800">{row.username}</td>
                   <td className="px-3 py-2">{row.display_name}</td>
                   <td className="px-3 py-2 text-xs text-slate-600">
-                    {Object.entries(row.roles ?? {}).map(([key, value]) => (
-                      <span key={key} className="mr-2 inline-flex rounded-full border px-2 py-0.5">
-                        {key}:{value}
-                      </span>
-                    ))}
+                    {Object.keys(defaultRoles).map((appKey) => {
+                      const value = row.roles?.[appKey] ?? "none";
+                      return (
+                        <span key={appKey} className="mr-2 inline-flex rounded-full border px-2 py-0.5">
+                          {appKey}:{value}
+                        </span>
+                      );
+                    })}
                   </td>
                   <td className="px-3 py-2 text-right space-x-2">
                     <Button size="sm" variant="outline" onClick={() => startEdit(row)}>

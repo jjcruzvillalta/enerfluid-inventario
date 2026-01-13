@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { useInventory } from "@/context/InventoryContext";
 import { useAuth } from "@/context/AuthContext";
-import { BarChart3, Clock, Home, LogOut, Menu, RefreshCw, UploadCloud, Warehouse } from "lucide-react";
+import { BarChart3, Clock, Home, LogOut, Menu, RefreshCw, UploadCloud, Warehouse, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ const navItems = [
     { href: "/inventory/upload", label: "Carga de archivos", icon: UploadCloud },
     { href: "/inventory/analysis", label: "Analisis", icon: BarChart3 },
     { href: "/inventory/replenishment", label: "Reposicion", icon: Warehouse },
+    { href: "/inventory/settings", label: "Configuracion", icon: Settings },
 ];
 
 const NavButton = ({ href, icon: Icon, children }) => {

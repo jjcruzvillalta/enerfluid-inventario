@@ -2,8 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 
 type RoleRow = {
@@ -14,17 +12,17 @@ type RoleRow = {
   role: string;
 };
 
-export default function CrmSettingsPage() {
+export default function InventorySettingsPage() {
   const { user, loading, canAccess } = useAuth();
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [rolesLoading, setRolesLoading] = useState(false);
 
   useEffect(() => {
-    if (!user || !canAccess("crm", "admin")) return;
+    if (!user || !canAccess("inventory", "admin")) return;
     const load = async () => {
       setRolesLoading(true);
       try {
-        const res = await fetch("/api/roles?app=crm", { cache: "no-store", credentials: "include" });
+        const res = await fetch("/api/roles?app=inventory", { cache: "no-store", credentials: "include" });
         if (!res.ok) return;
         const data = await res.json();
         setRoles(data?.users || []);
@@ -38,35 +36,19 @@ export default function CrmSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-800">Configuracion CRM</h1>
-        <p className="text-sm text-slate-500">Ajustes generales del CRM.</p>
+        <h1 className="text-2xl font-semibold text-slate-800">Configuracion Inventario</h1>
+        <p className="text-sm text-slate-500">Accesos y parametros del modulo de inventario.</p>
       </div>
-
-      <Card className="p-6 space-y-4">
-        <div>
-          <p className="text-xs text-slate-500">Nombre del equipo</p>
-          <Input placeholder="Enerfluid CRM" />
-        </div>
-        <div>
-          <p className="text-xs text-slate-500">Moneda</p>
-          <Input placeholder="USD" />
-        </div>
-        <div>
-          <p className="text-xs text-slate-500">Objetivo mensual (USD)</p>
-          <Input placeholder="250000" />
-        </div>
-        <Button>Guardar cambios</Button>
-      </Card>
 
       <Card className="p-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-700">Accesos al CRM</h2>
+          <h2 className="text-sm font-semibold text-slate-700">Accesos a Inventario</h2>
           <span className="text-xs text-slate-400">
             {rolesLoading ? "Cargando..." : `${roles.length} usuarios`}
           </span>
         </div>
-        {!loading && !canAccess("crm", "admin") ? (
-          <p className="mt-3 text-sm text-slate-400">Solo admin CRM puede ver los accesos.</p>
+        {!loading && !canAccess("inventory", "admin") ? (
+          <p className="mt-3 text-sm text-slate-400">Solo admin Inventario puede ver los accesos.</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm">

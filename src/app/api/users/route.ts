@@ -64,11 +64,13 @@ export async function POST(req: Request) {
 
     if (error || !newUser) return new NextResponse("Error al crear usuario", { status: 500 });
 
-    const roleRows = Object.entries(roles).map(([app_key, role]) => ({
-      user_id: newUser.id,
-      app_key,
-      role,
-    }));
+    const roleRows = Object.entries(roles)
+      .filter(([, role]) => role === "admin" || role === "standard")
+      .map(([app_key, role]) => ({
+        user_id: newUser.id,
+        app_key,
+        role,
+      }));
     if (roleRows.length) {
       const { error: roleError } = await supabaseServer.from("user_roles").insert(roleRows);
       if (roleError) return new NextResponse("Error al asignar roles", { status: 500 });

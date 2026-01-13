@@ -25,11 +25,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     if (body?.roles) {
       await supabaseServer.from("user_roles").delete().eq("user_id", userId);
-      const roleRows = Object.entries(body.roles).map(([app_key, role]) => ({
-        user_id: userId,
-        app_key,
-        role,
-      }));
+      const roleRows = Object.entries(body.roles)
+        .filter(([, role]) => role === "admin" || role === "standard")
+        .map(([app_key, role]) => ({
+          user_id: userId,
+          app_key,
+          role,
+        }));
       if (roleRows.length) {
         const { error: roleError } = await supabaseServer.from("user_roles").insert(roleRows);
         if (roleError) return new NextResponse("Error al asignar roles", { status: 500 });
