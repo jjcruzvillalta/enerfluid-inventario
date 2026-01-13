@@ -265,7 +265,7 @@ export default function AnalysisPage() {
   const [showEgresos, setShowEgresos] = useState(true);
   const [movementLimit, setMovementLimit] = useState(100);
   const [itemsTableLimit, setItemsTableLimit] = useState(200);
-  const [motSelection, setMotSelection] = useState(new Set());
+  const [motSelection, setMotSelection] = useState<Set<string>>(new Set());
   const [itemModal, setItemModal] = useState({ open: false, item: null });
 
   const selectedSet = useMemo(() => getSelectedSet(itemsIndex, selection), [itemsIndex, selection]);
@@ -324,10 +324,10 @@ export default function AnalysisPage() {
     return buildSalesByCatalogData(rows, catalogLookup);
   }, [ventas, selectedSet, catalogLookup]);
 
-  const motives = useMemo(() => {
-    const set = new Set();
+  const motives = useMemo((): string[] => {
+    const set = new Set<string>();
     movements.forEach((row) => {
-      if (row.mot !== undefined) set.add(row.mot || "");
+      if (row.mot !== undefined) set.add(String(row.mot || ""));
     });
     return Array.from(set).sort();
   }, [movements]);
