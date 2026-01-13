@@ -21,7 +21,7 @@ export default function ReplenishmentPage() {
   const [bufferMonths, setBufferMonths] = useState(1);
   const [replenishmentLimit, setReplenishmentLimit] = useState(200);
 
-  const [consumptionMotSelection, setConsumptionMotSelection] = useState(new Set());
+  const [consumptionMotSelection, setConsumptionMotSelection] = useState<Set<string>>(new Set());
   const [brandModal, setBrandModal] = useState({ open: false, brand: "", rows: [] });
   const [itemModal, setItemModal] = useState({ open: false, item: null });
 
@@ -31,10 +31,10 @@ export default function ReplenishmentPage() {
   const formatCoverage = (value, digits = 1) =>
     Number.isFinite(value) ? formatNumber(value, digits) : "Sin consumo";
 
-  const motives = useMemo(() => {
-    const set = new Set();
+  const motives = useMemo((): string[] => {
+    const set = new Set<string>();
     movements.forEach((row) => {
-      if (row.mot !== undefined) set.add(row.mot || "");
+      if (row.mot !== undefined) set.add(String(row.mot || ""));
     });
     return Array.from(set).sort();
   }, [movements]);
@@ -112,7 +112,7 @@ export default function ReplenishmentPage() {
                 type="number"
                 min="1"
                 value={consumptionWindowMonths}
-                onChange={(event) => setConsumptionWindowMonths(event.target.value)}
+                onChange={(event) => setConsumptionWindowMonths(Number(event.target.value))}
               />
             </label>
             <label className="text-xs text-slate-600">
@@ -122,7 +122,7 @@ export default function ReplenishmentPage() {
                 min="0"
                 step="0.1"
                 value={leadTimeMonths}
-                onChange={(event) => setLeadTimeMonths(event.target.value)}
+                onChange={(event) => setLeadTimeMonths(Number(event.target.value))}
               />
             </label>
             <label className="text-xs text-slate-600">
@@ -131,7 +131,7 @@ export default function ReplenishmentPage() {
                 type="number"
                 min="0"
                 value={bufferMonths}
-                onChange={(event) => setBufferMonths(event.target.value)}
+                onChange={(event) => setBufferMonths(Number(event.target.value))}
               />
             </label>
             <label className="text-xs text-slate-600">
@@ -140,7 +140,7 @@ export default function ReplenishmentPage() {
                 type="number"
                 min="1"
                 value={targetCoverageMonths}
-                onChange={(event) => setTargetCoverageMonths(event.target.value)}
+                onChange={(event) => setTargetCoverageMonths(Number(event.target.value))}
               />
             </label>
           </div>
