@@ -2,6 +2,128 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getSessionFromRequest, hasAccess } from "@/lib/auth";
 
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const session = await getSessionFromRequest();
+  if (!session) return new NextResponse("No autenticado", { status: 401 });
+  if (!hasAccess(session.roles, "crm", "standard")) {
+    return new NextResponse("Sin acceso", { status: 403 });
+  }
+
+  try {
+    const { data: contact, error } = await supabaseServer
+      .from("crm_contacts")
+      .select("*")
+      .eq("id", params.id)
+      .maybeSingle();
+    if (error || !contact) return new NextResponse("Contacto no encontrado", { status: 404 });
+
+    const [clientRes, opportunityLinks, activityLinks, notesRes] = await Promise.all([
+      contact.client_id
+        ? supabaseServer.from("crm_clients").select("id,name").eq("id", contact.client_id).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabaseServer
+        .from("crm_opportunity_contacts")
+        .select("opportunity_id")
+        .eq("contact_id", params.id),
+      supabaseServer
+        .from("crm_activity_contacts")
+        .select("activity_id")
+        .eq("contact_id", params.id),
+      supabaseServer
+        .from("crm_notes")
+        .select("id,detail,author_user_id,parent_note_id,created_at")
+        .eq("contact_id", params.id)
+        .order("created_at", { ascending: true }),
+    ]);
+
+    if (clientRes.error || opportunityLinks.error || activityLinks.error || notesRes.error) {
+      return new NextResponse("Error al cargar detalle", { status: 500 });
+    }
+
+    const opportunityIds = Array.from(new Set((opportunityLinks.data || []).map((row) => row.opportunity_id)));
+    const activityIds = Array.from(new Set((activityLinks.data || []).map((row) => row.activity_id)));
+
+    const [opportunitiesRes, activitiesRes] = await Promise.all([
+      opportunityIds.length
+        ? supabaseServer
+            .from("crm_opportunities")
+            .select("id,title,stage_id,responsible_user_id,created_at")
+            .in("id", opportunityIds)
+        : Promise.resolve({ data: [] }),
+      activityIds.length
+        ? supabaseServer
+            .from("crm_activities")
+            .select("id,activity_type_id,outcome_id,responsible_user_id,scheduled_at,created_at")
+            .in("id", activityIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const stageIds = Array.from(new Set((opportunitiesRes.data || []).map((row) => row.stage_id).filter(Boolean)));
+    const typeIds = Array.from(new Set((activitiesRes.data || []).map((row) => row.activity_type_id).filter(Boolean)));
+    const outcomeIds = Array.from(new Set((activitiesRes.data || []).map((row) => row.outcome_id).filter(Boolean)));
+    const userIds = Array.from(
+      new Set(
+        [
+          ...((opportunitiesRes.data || []).map((row) => row.responsible_user_id) || []),
+          ...((activitiesRes.data || []).map((row) => row.responsible_user_id) || []),
+          ...((notesRes.data || []).map((row) => row.author_user_id) || []),
+        ].filter(Boolean)
+      )
+    );
+
+    const [stageRows, typeRows, outcomeRows, userRows] = await Promise.all([
+      stageIds.length
+        ? supabaseServer.from("crm_opportunity_stages").select("id,name").in("id", stageIds)
+        : Promise.resolve({ data: [] }),
+      typeIds.length
+        ? supabaseServer.from("crm_activity_types").select("id,name").in("id", typeIds)
+        : Promise.resolve({ data: [] }),
+      outcomeIds.length
+        ? supabaseServer.from("crm_activity_outcomes").select("id,name").in("id", outcomeIds)
+        : Promise.resolve({ data: [] }),
+      userIds.length
+        ? supabaseServer.from("app_users").select("id,display_name,username").in("id", userIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const stageMap = new Map((stageRows.data || []).map((row) => [row.id, row.name]));
+    const typeMap = new Map((typeRows.data || []).map((row) => [row.id, row.name]));
+    const outcomeMap = new Map((outcomeRows.data || []).map((row) => [row.id, row.name]));
+    const userMap = new Map(
+      (userRows.data || []).map((row) => [row.id, row.display_name || row.username])
+    );
+
+    const opportunities = (opportunitiesRes.data || []).map((row) => ({
+      ...row,
+      stage_name: row.stage_id ? stageMap.get(row.stage_id) || "-" : "-",
+      responsible_name: row.responsible_user_id ? userMap.get(row.responsible_user_id) || "-" : "-",
+    }));
+
+    const activities = (activitiesRes.data || []).map((row) => ({
+      ...row,
+      type_name: row.activity_type_id ? typeMap.get(row.activity_type_id) || "-" : "-",
+      outcome_name: row.outcome_id ? outcomeMap.get(row.outcome_id) || "-" : "-",
+      responsible_name: row.responsible_user_id ? userMap.get(row.responsible_user_id) || "-" : "-",
+    }));
+
+    const notes = (notesRes.data || []).map((row) => ({
+      ...row,
+      author_name: row.author_user_id ? userMap.get(row.author_user_id) || "-" : "-",
+    }));
+
+    return NextResponse.json({
+      contact,
+      client: clientRes.data || null,
+      opportunities,
+      activities,
+      notes,
+    });
+  } catch (error) {
+    console.error(error);
+    return new NextResponse("Error al cargar contacto", { status: 500 });
+  }
+}
+
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getSessionFromRequest();
   if (!session) return new NextResponse("No autenticado", { status: 401 });
@@ -12,13 +134,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   try {
     const body = await req.json();
     const updates: Record<string, any> = {};
-    if (body?.client_id !== undefined) updates.client_id = body.client_id || null;
-    if (body?.name) updates.name = String(body.name).trim();
+    if (body?.name !== undefined) updates.name = String(body.name || "").trim();
     if (body?.role !== undefined) updates.role = String(body.role || "").trim();
     if (body?.phone !== undefined) updates.phone = String(body.phone || "").trim();
     if (body?.email !== undefined) updates.email = String(body.email || "").trim();
-    if (body?.area !== undefined) updates.area = String(body.area || "").trim();
-    if (body?.tags !== undefined) updates.tags = Array.isArray(body.tags) ? body.tags : null;
+    if (body?.detail !== undefined) updates.detail = String(body.detail || "").trim();
+    if (body?.client_id !== undefined) updates.client_id = body.client_id || null;
     updates.updated_at = new Date().toISOString();
 
     const { error } = await supabaseServer.from("crm_contacts").update(updates).eq("id", params.id);
@@ -33,7 +154,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const session = await getSessionFromRequest();
   if (!session) return new NextResponse("No autenticado", { status: 401 });
-  if (!hasAccess(session.roles, "crm", "standard")) {
+  if (!hasAccess(session.roles, "crm", "admin")) {
     return new NextResponse("Sin acceso", { status: 403 });
   }
 

@@ -2,6 +2,19 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getSessionFromRequest, hasAccess } from "@/lib/auth";
 
+const uniqueIds = (values: any[]) => Array.from(new Set(values.filter(Boolean)));
+
+const resolveClosedAt = async (stageId?: string | null) => {
+  if (!stageId) return null;
+  const { data: stage } = await supabaseServer
+    .from("crm_opportunity_stages")
+    .select("is_won,is_lost")
+    .eq("id", stageId)
+    .maybeSingle();
+  if (stage?.is_won || stage?.is_lost) return new Date().toISOString();
+  return null;
+};
+
 export async function GET(req: Request) {
   const session = await getSessionFromRequest();
   if (!session) return new NextResponse("No autenticado", { status: 401 });
@@ -11,51 +24,64 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const q = String(searchParams.get("q") || "").trim();
-  const stage = String(searchParams.get("stage") || "").trim();
-  const status = String(searchParams.get("status") || "").trim();
+  const stageId = String(searchParams.get("stageId") || "").trim();
   const clientId = String(searchParams.get("clientId") || "").trim();
+  const responsibleId = String(searchParams.get("responsibleId") || "").trim();
 
   try {
     let query = supabaseServer
       .from("crm_opportunities")
-      .select(
-        "id,name,stage,status,value,currency,client_id,contact_id,owner,expected_close_date,close_date,updated_at,created_at"
-      )
-      .order("updated_at", { ascending: false });
+      .select("id,title,client_id,responsible_user_id,stage_id,closed_at,created_at")
+      .order("created_at", { ascending: false });
 
-    if (q) query = query.ilike("name", `%${q}%`);
-    if (stage) query = query.eq("stage", stage);
-    if (status) query = query.eq("status", status);
+    if (q) query = query.ilike("title", `%${q}%`);
+    if (stageId) query = query.eq("stage_id", stageId);
     if (clientId) query = query.eq("client_id", clientId);
+    if (responsibleId) query = query.eq("responsible_user_id", responsibleId);
 
-    const { data: deals, error } = await query;
+    const { data: opportunities, error } = await query;
     if (error) return new NextResponse("Error al cargar oportunidades", { status: 500 });
 
-    const clientIds = Array.from(new Set((deals || []).map((row) => row.client_id).filter(Boolean)));
-    const contactIds = Array.from(new Set((deals || []).map((row) => row.contact_id).filter(Boolean)));
+    const clientIds = uniqueIds((opportunities || []).map((row) => row.client_id));
+    const stageIds = uniqueIds((opportunities || []).map((row) => row.stage_id));
+    const userIds = uniqueIds((opportunities || []).map((row) => row.responsible_user_id));
 
-    const clientMap = new Map<string, string>();
-    if (clientIds.length) {
-      const { data: clientRows } = await supabaseServer
-        .from("crm_clients")
-        .select("id,name")
-        .in("id", clientIds);
-      (clientRows || []).forEach((client) => clientMap.set(client.id, client.name));
+    const [clientsRes, stagesRes, usersRes] = await Promise.all([
+      clientIds.length
+        ? supabaseServer.from("crm_clients").select("id,name").in("id", clientIds)
+        : Promise.resolve({ data: [] }),
+      stageIds.length
+        ? supabaseServer.from("crm_opportunity_stages").select("id,name").in("id", stageIds)
+        : Promise.resolve({ data: [] }),
+      userIds.length
+        ? supabaseServer.from("app_users").select("id,display_name,username").in("id", userIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const clientMap = new Map((clientsRes.data || []).map((row) => [row.id, row.name]));
+    const stageMap = new Map((stagesRes.data || []).map((row) => [row.id, row.name]));
+    const userMap = new Map(
+      (usersRes.data || []).map((row) => [row.id, row.display_name || row.username])
+    );
+
+    const contactCounts = new Map<string, number>();
+    const oppIds = (opportunities || []).map((row) => row.id);
+    if (oppIds.length) {
+      const { data: links } = await supabaseServer
+        .from("crm_opportunity_contacts")
+        .select("opportunity_id")
+        .in("opportunity_id", oppIds);
+      (links || []).forEach((row) => {
+        contactCounts.set(row.opportunity_id, (contactCounts.get(row.opportunity_id) || 0) + 1);
+      });
     }
 
-    const contactMap = new Map<string, string>();
-    if (contactIds.length) {
-      const { data: contactRows } = await supabaseServer
-        .from("crm_contacts")
-        .select("id,name")
-        .in("id", contactIds);
-      (contactRows || []).forEach((contact) => contactMap.set(contact.id, contact.name));
-    }
-
-    const payload = (deals || []).map((row) => ({
+    const payload = (opportunities || []).map((row) => ({
       ...row,
       client_name: row.client_id ? clientMap.get(row.client_id) || "-" : "-",
-      contact_name: row.contact_id ? contactMap.get(row.contact_id) || "-" : "-",
+      stage_name: row.stage_id ? stageMap.get(row.stage_id) || "-" : "-",
+      responsible_name: row.responsible_user_id ? userMap.get(row.responsible_user_id) || "-" : "-",
+      contacts_count: contactCounts.get(row.id) || 0,
     }));
 
     return NextResponse.json({ opportunities: payload });
@@ -74,33 +100,38 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const name = String(body?.name || "").trim();
-    if (!name) return new NextResponse("Nombre requerido", { status: 400 });
+    const title = String(body?.title || "").trim();
+    if (!title) return new NextResponse("Titulo requerido", { status: 400 });
+
+    const stageId = body?.stage_id || null;
+    const closedAt = await resolveClosedAt(stageId);
 
     const payload = {
+      title,
       client_id: body?.client_id || null,
-      contact_id: body?.contact_id || null,
-      name,
-      stage: body?.stage ? String(body.stage).trim() : null,
-      status: body?.status ? String(body.status).trim() : null,
-      value: body?.value ?? null,
-      currency: body?.currency ? String(body.currency).trim() : null,
-      owner: body?.owner ? String(body.owner).trim() : null,
-      expected_close_date: body?.expected_close_date || null,
-      close_date: body?.close_date || null,
+      responsible_user_id: body?.responsible_user_id || null,
+      stage_id: stageId,
+      closed_at: closedAt,
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabaseServer
+    const { data: opportunity, error } = await supabaseServer
       .from("crm_opportunities")
       .insert(payload)
-      .select(
-        "id,name,stage,status,value,currency,client_id,contact_id,owner,expected_close_date,close_date,updated_at,created_at"
-      )
+      .select("id,title,client_id,responsible_user_id,stage_id,closed_at,created_at")
       .maybeSingle();
-    if (error) return new NextResponse("Error al crear oportunidad", { status: 500 });
+    if (error || !opportunity) return new NextResponse("Error al crear oportunidad", { status: 500 });
 
-    return NextResponse.json({ opportunity: data });
+    const contactIds = Array.isArray(body?.contact_ids) ? body.contact_ids.filter(Boolean) : [];
+    if (contactIds.length) {
+      const rows = contactIds.map((contactId: string) => ({
+        opportunity_id: opportunity.id,
+        contact_id: contactId,
+      }));
+      await supabaseServer.from("crm_opportunity_contacts").insert(rows);
+    }
+
+    return NextResponse.json({ opportunity });
   } catch (error) {
     console.error(error);
     return new NextResponse("Error al crear oportunidad", { status: 500 });

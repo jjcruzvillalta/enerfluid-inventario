@@ -11,17 +11,15 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const q = String(searchParams.get("q") || "").trim();
-  const role = String(searchParams.get("role") || "").trim();
   const clientId = String(searchParams.get("clientId") || "").trim();
 
   try {
     let query = supabaseServer
       .from("crm_contacts")
-      .select("id,name,role,phone,email,client_id,created_at,updated_at")
-      .order("name", { ascending: true });
+      .select("id,name,role,phone,email,detail,client_id,created_at")
+      .order("created_at", { ascending: false });
 
     if (q) query = query.ilike("name", `%${q}%`);
-    if (role) query = query.ilike("role", `%${role}%`);
     if (clientId) query = query.eq("client_id", clientId);
 
     const { data: contacts, error } = await query;
@@ -30,11 +28,11 @@ export async function GET(req: Request) {
     const clientIds = Array.from(new Set((contacts || []).map((row) => row.client_id).filter(Boolean)));
     const clientMap = new Map<string, string>();
     if (clientIds.length) {
-      const { data: clientRows } = await supabaseServer
+      const { data: clients } = await supabaseServer
         .from("crm_clients")
         .select("id,name")
         .in("id", clientIds);
-      (clientRows || []).forEach((client) => clientMap.set(client.id, client.name));
+      (clients || []).forEach((row) => clientMap.set(row.id, row.name));
     }
 
     const payload = (contacts || []).map((row) => ({
@@ -62,20 +60,19 @@ export async function POST(req: Request) {
     if (!name) return new NextResponse("Nombre requerido", { status: 400 });
 
     const payload = {
-      client_id: body?.client_id || null,
       name,
+      client_id: body?.client_id || null,
       role: body?.role ? String(body.role).trim() : null,
       phone: body?.phone ? String(body.phone).trim() : null,
       email: body?.email ? String(body.email).trim() : null,
-      area: body?.area ? String(body.area).trim() : null,
-      tags: Array.isArray(body?.tags) ? body.tags : null,
+      detail: body?.detail ? String(body.detail).trim() : null,
       updated_at: new Date().toISOString(),
     };
 
     const { data, error } = await supabaseServer
       .from("crm_contacts")
       .insert(payload)
-      .select("id,name,role,phone,email,client_id,created_at,updated_at")
+      .select("id,name,role,phone,email,detail,client_id,created_at")
       .maybeSingle();
     if (error) return new NextResponse("Error al crear contacto", { status: 500 });
 

@@ -1,15 +1,17 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
+import { NotificationsDialog } from "@/components/crm/NotificationsDialog";
 import {
   Activity,
   BarChart3,
+  Bell,
   Briefcase,
   Contact,
   Home,
@@ -40,7 +42,28 @@ const NavButton = ({ href, icon: Icon, children }) => {
 export default function CrmLayout({ children }) {
   const router = useRouter();
   const { user, loading, canAccess, logout } = useAuth();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const greeting = useMemo(() => user?.displayName || user?.username || "-", [user]);
+
+  const loadNotifications = async () => {
+    const res = await fetch("/api/crm/notifications", { cache: "no-store", credentials: "include" });
+    if (!res.ok) return;
+    const data = await res.json();
+    const unread = (data?.notifications || []).filter((item: any) => item.is_read === false).length;
+    setUnreadCount(unread);
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    loadNotifications();
+  }, [user]);
+
+  useEffect(() => {
+    if (!notificationsOpen) {
+      loadNotifications();
+    }
+  }, [notificationsOpen]);
 
   if (loading) return <div className="flex h-screen items-center justify-center">Cargando...</div>;
   if (!user) return <div className="flex h-screen items-center justify-center">Inicia sesion...</div>;
@@ -59,8 +82,8 @@ export default function CrmLayout({ children }) {
           </div>
         </div>
         <div className="mt-10 flex flex-col gap-3">
-          <NavButton href="/crm/dashboard" icon={BarChart3}>
-            Dashboard
+          <NavButton href="/crm/analysis" icon={BarChart3}>
+            Analisis
           </NavButton>
           <NavButton href="/crm/clients" icon={Users}>
             Clientes
@@ -111,15 +134,43 @@ export default function CrmLayout({ children }) {
                 <p className="text-sm text-slate-500">Hola, {greeting}</p>
                 <h2 className="text-xl font-semibold text-ink">Enerfluid CRM</h2>
               </div>
-              <Button variant="outline" onClick={() => router.push("/")}>
-                <Home className="mr-2 h-4 w-4" />
-                Portal
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" className="relative" onClick={() => setNotificationsOpen(true)}>
+                  <Bell className="mr-2 h-4 w-4" />
+                  Notificaciones
+                  {unreadCount > 0 ? (
+                    <span className="ml-2 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-accent px-2 text-[10px] text-white">
+                      {unreadCount}
+                    </span>
+                  ) : null}
+                </Button>
+                <Button variant="outline" onClick={() => router.push("/")}>
+                  <Home className="mr-2 h-4 w-4" />
+                  Portal
+                </Button>
+              </div>
             </CardHeader>
           </Card>
           {children}
         </div>
       </main>
+
+      <NotificationsDialog
+        open={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+        onNavigate={(entity) => {
+          if (!entity) return;
+          const routes: Record<string, string> = {
+            client: "/crm/clients",
+            contact: "/crm/contacts",
+            opportunity: "/crm/opportunities",
+            activity: "/crm/activities",
+          };
+          const target = routes[entity.type] || "/crm/analysis";
+          setNotificationsOpen(false);
+          router.push(target);
+        }}
+      />
     </div>
   );
 }
