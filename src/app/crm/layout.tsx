@@ -22,7 +22,14 @@ import {
   Users,
 } from "lucide-react";
 
-const NavButton = ({ href, icon: Icon, children, className, ...props }) => {
+type NavButtonProps = {
+  href: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  className?: string;
+} & Omit<React.ComponentProps<typeof Link>, "href" | "className" | "children">;
+
+const NavButton = ({ href, icon: Icon, children, className, ...props }: NavButtonProps) => {
   const pathname = usePathname();
   const isActive = pathname === href;
   return (
