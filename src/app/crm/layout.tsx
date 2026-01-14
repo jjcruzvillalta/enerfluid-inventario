@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
+import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationsDialog } from "@/components/crm/NotificationsDialog";
 import {
@@ -16,11 +17,12 @@ import {
   Contact,
   Home,
   LogOut,
+  Menu,
   Settings,
   Users,
 } from "lucide-react";
 
-const NavButton = ({ href, icon: Icon, children }) => {
+const NavButton = ({ href, icon: Icon, children, className, ...props }) => {
   const pathname = usePathname();
   const isActive = pathname === href;
   return (
@@ -30,8 +32,10 @@ const NavButton = ({ href, icon: Icon, children }) => {
         "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
         isActive
           ? "border-accent/20 bg-accentSoft text-accent shadow-sm"
-          : "border-transparent bg-transparent text-slate-600 hover:bg-accentSoft/60"
+          : "border-transparent bg-transparent text-slate-600 hover:bg-accentSoft/60",
+        className
       )}
+      {...props}
     >
       {Icon ? <Icon className="h-4 w-4" /> : null}
       <span>{children}</span>
@@ -39,11 +43,21 @@ const NavButton = ({ href, icon: Icon, children }) => {
   );
 };
 
+const navItems = [
+  { href: "/crm/analysis", label: "Analisis", icon: BarChart3 },
+  { href: "/crm/clients", label: "Clientes", icon: Users },
+  { href: "/crm/contacts", label: "Contactos", icon: Contact },
+  { href: "/crm/opportunities", label: "Oportunidades", icon: Briefcase },
+  { href: "/crm/activities", label: "Actividades", icon: Activity },
+  { href: "/crm/settings", label: "Configuracion", icon: Settings },
+];
+
 export default function CrmLayout({ children }) {
   const router = useRouter();
   const { user, loading, canAccess, logout } = useAuth();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const greeting = useMemo(() => user?.displayName || user?.username || "-", [user]);
 
   const loadNotifications = async () => {
@@ -82,24 +96,11 @@ export default function CrmLayout({ children }) {
           </div>
         </div>
         <div className="mt-10 flex flex-col gap-3">
-          <NavButton href="/crm/analysis" icon={BarChart3}>
-            Analisis
-          </NavButton>
-          <NavButton href="/crm/clients" icon={Users}>
-            Clientes
-          </NavButton>
-          <NavButton href="/crm/contacts" icon={Contact}>
-            Contactos
-          </NavButton>
-          <NavButton href="/crm/opportunities" icon={Briefcase}>
-            Oportunidades
-          </NavButton>
-          <NavButton href="/crm/activities" icon={Activity}>
-            Actividades
-          </NavButton>
-          <NavButton href="/crm/settings" icon={Settings}>
-            Configuracion
-          </NavButton>
+          {navItems.map((item) => (
+            <NavButton key={item.href} href={item.href} icon={item.icon}>
+              {item.label}
+            </NavButton>
+          ))}
         </div>
         <div className="mt-auto border-t pt-6">
           <div className="flex items-center gap-3 mb-4 px-2">
@@ -130,11 +131,68 @@ export default function CrmLayout({ children }) {
         <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
           <Card className="glass-panel">
             <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Hola, {greeting}</p>
-                <h2 className="text-xl font-semibold text-ink">Enerfluid CRM</h2>
+              <div className="flex items-start gap-3">
+                <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                  <SheetTrigger asChild>
+                    <Button variant="outline" size="icon" className="lg:hidden">
+                      <Menu className="h-4 w-4" />
+                      <span className="sr-only">Abrir menu</span>
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-slate-900 text-white flex items-center justify-center text-sm font-bold">
+                        C
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                          Enerfluid Apps
+                        </p>
+                        <p className="text-sm font-semibold text-slate-700">CRM</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {navItems.map((item) => (
+                        <SheetClose asChild key={item.href}>
+                          <NavButton href={item.href} icon={item.icon}>
+                            {item.label}
+                          </NavButton>
+                        </SheetClose>
+                      ))}
+                    </div>
+                    <div className="mt-auto border-t pt-4">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-xs">
+                          {greeting[0]?.toUpperCase()}
+                        </div>
+                        <div className="text-xs overflow-hidden">
+                          <p className="font-medium text-slate-700 truncate">{greeting}</p>
+                          <p className="text-slate-400">Sesion activa</p>
+                        </div>
+                      </div>
+                      <SheetClose asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-2 text-slate-500"
+                          onClick={async () => {
+                            await logout();
+                            router.push("/login");
+                          }}
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Cerrar sesion
+                        </Button>
+                      </SheetClose>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+                <div>
+                  <p className="text-sm text-slate-500">Hola, {greeting}</p>
+                  <h2 className="text-xl font-semibold text-ink">Enerfluid CRM</h2>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" className="relative" onClick={() => setNotificationsOpen(true)}>
                   <Bell className="mr-2 h-4 w-4" />
                   Notificaciones

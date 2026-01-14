@@ -9,6 +9,11 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Enerfluid Apps",
   description: "Plataforma integral de Enerfluid",
+  icons: {
+    icon: "/enerfluid-icono.png",
+    shortcut: "/enerfluid-icono.png",
+    apple: "/enerfluid-icono.png",
+  },
 };
 
 export default function RootLayout({
