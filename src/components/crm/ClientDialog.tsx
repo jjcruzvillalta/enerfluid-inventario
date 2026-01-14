@@ -19,8 +19,9 @@ type ClientDialogProps = {
   onOpenContact?: (id: string) => void;
   onOpenOpportunity?: (id: string) => void;
   onOpenActivity?: (id: string) => void;
-  onCreateOpportunity?: () => void;
-  onCreateActivity?: () => void;
+  onCreateContact?: (context?: { clientId?: string | null }) => void;
+  onCreateOpportunity?: (context?: { clientId?: string | null }) => void;
+  onCreateActivity?: (context?: { clientId?: string | null }) => void;
   onOpenNote?: (id: string) => void;
   onCreateNote?: (context: { clientId: string; parentNoteId?: string; parentPreview?: string }) => void;
 };
@@ -74,6 +75,7 @@ export function ClientDialog({
   onOpenContact,
   onOpenOpportunity,
   onOpenActivity,
+  onCreateContact,
   onCreateOpportunity,
   onCreateActivity,
   onOpenNote,
@@ -183,15 +185,40 @@ export function ClientDialog({
         detail: activity.detail || "",
       })) || [];
 
-    const noteItems =
-      detail?.notes?.map((note) => ({
-        id: note.id,
-        type: "note" as const,
-        date: note.created_at || "",
-        title: note.author_name || "-",
-        subtitle: "",
-        detail: note.detail || "",
-      })) || [];
+    const notes = detail?.notes || [];
+    const noteMap = new Map<string, (typeof notes)[0] & { replies: (typeof notes) }>();
+    notes.forEach((note) => {
+      noteMap.set(note.id, { ...note, replies: [] });
+    });
+    notes.forEach((note) => {
+      if (note.parent_note_id && noteMap.has(note.parent_note_id)) {
+        noteMap.get(note.parent_note_id)!.replies.push(note);
+      }
+    });
+
+    const noteItems = notes
+      .filter((note) => !note.parent_note_id)
+      .map((note) => {
+        const thread = noteMap.get(note.id)!;
+        thread.replies.sort((a, b) => {
+          const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return aTime - bTime;
+        });
+        const threadDates = [thread.created_at, ...thread.replies.map((reply) => reply.created_at)].filter(
+          Boolean
+        ) as string[];
+        const latestDate = threadDates.length ? threadDates.sort().slice(-1)[0] : "";
+        return {
+          id: thread.id,
+          type: "note" as const,
+          date: latestDate || thread.created_at || "",
+          rootDate: thread.created_at || "",
+          title: thread.author_name || "-",
+          detail: thread.detail || "",
+          replies: thread.replies,
+        };
+      });
 
     return [...activityItems, ...noteItems].sort((a, b) => {
       const aTime = a.date ? new Date(a.date).getTime() : 0;
@@ -204,7 +231,7 @@ export function ClientDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
-      <DialogContent className="w-[96vw] max-w-5xl">
+      <DialogContent className="w-[96vw] max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogClose asChild>
           <button
             type="button"
@@ -285,6 +312,14 @@ export function ClientDialog({
               </DetailSection>
 
               <DetailSection title={`Contactos (${detail?.contacts?.length || 0})`}>
+                <div className="flex items-center justify-between pb-2">
+                  <p className="text-xs text-slate-400">{detail?.contacts?.length || 0} contactos</p>
+                  {!isCreate ? (
+                    <Button size="sm" variant="outline" onClick={() => onCreateContact?.({ clientId })}>
+                      Nuevo contacto
+                    </Button>
+                  ) : null}
+                </div>
                 <div className="space-y-2">
                   {(detail?.contacts || []).map((contact) => (
                     <button
@@ -307,7 +342,7 @@ export function ClientDialog({
                     {detail?.opportunities?.length || 0} oportunidades
                   </p>
                   {!isCreate ? (
-                    <Button size="sm" variant="outline" onClick={onCreateOpportunity}>
+                    <Button size="sm" variant="outline" onClick={() => onCreateOpportunity?.({ clientId })}>
                       Nueva oportunidad
                     </Button>
                   ) : null}
@@ -335,7 +370,7 @@ export function ClientDialog({
                   <p className="text-xs text-slate-400">{timeline.length} eventos</p>
                   <div className="flex gap-2">
                     {!isCreate ? (
-                      <Button size="sm" variant="outline" onClick={onCreateActivity}>
+                      <Button size="sm" variant="outline" onClick={() => onCreateActivity?.({ clientId })}>
                         Nueva actividad
                       </Button>
                     ) : null}
@@ -383,6 +418,19 @@ export function ClientDialog({
                           </>
                         )}
                       </div>
+                      {item.type === "note" && item.replies?.length ? (
+                        <div className="mt-3 space-y-2 border-l border-line pl-3">
+                          {item.replies.map((reply: any) => (
+                            <div key={reply.id} className="text-xs text-slate-600">
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold text-ink">{reply.author_name || "-"}</span>
+                                <span>{reply.created_at ? formatDateTime(reply.created_at) : "-"}</span>
+                              </div>
+                              <p className="mt-1 text-sm text-slate-700">{reply.detail}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                   {!timeline.length ? <p className="text-xs text-slate-400">Sin eventos.</p> : null}

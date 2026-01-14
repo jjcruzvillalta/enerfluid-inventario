@@ -14,12 +14,13 @@ type OpportunityDialogProps = {
   open: boolean;
   opportunityId?: string | null;
   mode?: "create" | "view";
+  initialClientId?: string | null;
   onClose: () => void;
   onSaved?: () => void;
   onOpenClient?: (id: string) => void;
   onOpenContact?: (id: string) => void;
   onOpenActivity?: (id: string) => void;
-  onCreateActivity?: () => void;
+  onCreateActivity?: (context?: { clientId?: string | null }) => void;
   onOpenNote?: (id: string) => void;
   onCreateNote?: (context: { opportunityId: string; parentNoteId?: string; parentPreview?: string }) => void;
 };
@@ -62,6 +63,7 @@ export function OpportunityDialog({
   open,
   opportunityId,
   mode = "view",
+  initialClientId,
   onClose,
   onSaved,
   onOpenClient,
@@ -152,12 +154,12 @@ export function OpportunityDialog({
     setEditing(isCreate);
     if (isCreate) {
       setDetail(null);
-      setDraft({ title: "", client_id: "", responsible_user_id: "", stage_id: "" });
+      setDraft({ title: "", client_id: initialClientId || "", responsible_user_id: "", stage_id: "" });
       setContactSelection(new Set());
       return;
     }
     loadDetail();
-  }, [open, opportunityId, isCreate]);
+  }, [open, opportunityId, isCreate, initialClientId]);
 
   const handleSave = async () => {
     if (!draft.title.trim()) return;
@@ -204,15 +206,40 @@ export function OpportunityDialog({
         detail: activity.detail || "",
       })) || [];
 
-    const noteItems =
-      detail?.notes?.map((note) => ({
-        id: note.id,
-        type: "note" as const,
-        date: note.created_at || "",
-        title: note.author_name || "-",
-        subtitle: "",
-        detail: note.detail || "",
-      })) || [];
+    const notes = detail?.notes || [];
+    const noteMap = new Map<string, (typeof notes)[0] & { replies: (typeof notes) }>();
+    notes.forEach((note) => {
+      noteMap.set(note.id, { ...note, replies: [] });
+    });
+    notes.forEach((note) => {
+      if (note.parent_note_id && noteMap.has(note.parent_note_id)) {
+        noteMap.get(note.parent_note_id)!.replies.push(note);
+      }
+    });
+
+    const noteItems = notes
+      .filter((note) => !note.parent_note_id)
+      .map((note) => {
+        const thread = noteMap.get(note.id)!;
+        thread.replies.sort((a, b) => {
+          const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return aTime - bTime;
+        });
+        const threadDates = [thread.created_at, ...thread.replies.map((reply) => reply.created_at)].filter(
+          Boolean
+        ) as string[];
+        const latestDate = threadDates.length ? threadDates.sort().slice(-1)[0] : "";
+        return {
+          id: thread.id,
+          type: "note" as const,
+          date: latestDate || thread.created_at || "",
+          rootDate: thread.created_at || "",
+          title: thread.author_name || "-",
+          detail: thread.detail || "",
+          replies: thread.replies,
+        };
+      });
 
     return [...activityItems, ...noteItems].sort((a, b) => {
       const aTime = a.date ? new Date(a.date).getTime() : 0;
@@ -223,7 +250,7 @@ export function OpportunityDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
-      <DialogContent className="w-[96vw] max-w-5xl">
+      <DialogContent className="w-[96vw] max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogClose asChild>
           <button
             type="button"
@@ -357,7 +384,15 @@ export function OpportunityDialog({
                   <p className="text-xs text-slate-400">{timeline.length} eventos</p>
                   <div className="flex gap-2">
                     {!isCreate ? (
-                      <Button size="sm" variant="outline" onClick={onCreateActivity}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          onCreateActivity?.({
+                            clientId: detail?.opportunity?.client_id || detail?.client?.id || null,
+                          })
+                        }
+                      >
                         Nueva actividad
                       </Button>
                     ) : null}
@@ -405,6 +440,19 @@ export function OpportunityDialog({
                           </>
                         )}
                       </div>
+                      {item.type === "note" && item.replies?.length ? (
+                        <div className="mt-3 space-y-2 border-l border-line pl-3">
+                          {item.replies.map((reply: any) => (
+                            <div key={reply.id} className="text-xs text-slate-600">
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold text-ink">{reply.author_name || "-"}</span>
+                                <span>{reply.created_at ? formatDateTime(reply.created_at) : "-"}</span>
+                              </div>
+                              <p className="mt-1 text-sm text-slate-700">{reply.detail}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                   {!timeline.length ? <p className="text-xs text-slate-400">Sin eventos.</p> : null}

@@ -35,7 +35,11 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false });
 
     if (q) query = query.ilike("title", `%${q}%`);
-    if (stageId) query = query.eq("stage_id", stageId);
+    if (stageId === "sin_etapa") {
+      query = query.is("stage_id", null);
+    } else if (stageId) {
+      query = query.eq("stage_id", stageId);
+    }
     if (clientId) query = query.eq("client_id", clientId);
     if (responsibleId) query = query.eq("responsible_user_id", responsibleId);
 

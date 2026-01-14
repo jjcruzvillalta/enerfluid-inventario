@@ -14,6 +14,7 @@ type ActivityDialogProps = {
   open: boolean;
   activityId?: string | null;
   mode?: "create" | "view";
+  initialClientId?: string | null;
   onClose: () => void;
   onSaved?: () => void;
   onOpenClient?: (id: string) => void;
@@ -68,6 +69,7 @@ export function ActivityDialog({
   open,
   activityId,
   mode = "view",
+  initialClientId,
   onClose,
   onSaved,
   onOpenClient,
@@ -179,7 +181,7 @@ export function ActivityDialog({
       setDetail(null);
       setDraft({
         activity_type_id: "",
-        client_id: "",
+        client_id: initialClientId || "",
         opportunity_id: "",
         responsible_user_id: "",
         scheduled_at: "",
@@ -190,7 +192,7 @@ export function ActivityDialog({
       return;
     }
     loadDetail();
-  }, [open, activityId, isCreate]);
+  }, [open, activityId, isCreate, initialClientId]);
 
   const handleSave = async () => {
     if (!draft.scheduled_at) return;
@@ -245,7 +247,7 @@ export function ActivityDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
-      <DialogContent className="w-[96vw] max-w-5xl">
+      <DialogContent className="w-[96vw] max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogClose asChild>
           <button
             type="button"

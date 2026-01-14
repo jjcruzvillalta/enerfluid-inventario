@@ -14,10 +14,11 @@ type NoteContext = {
   activityId?: string | null;
 };
 
-type DialogState = {
+type DialogState<TContext = undefined> = {
   open: boolean;
   id: string | null;
   mode: "create" | "view";
+  context?: TContext;
 };
 
 type NoteState = {
@@ -35,9 +36,21 @@ type UseCrmDialogsOptions = {
 export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
   const { onRefresh } = options;
   const [clientState, setClientState] = useState<DialogState>({ open: false, id: null, mode: "view" });
-  const [contactState, setContactState] = useState<DialogState>({ open: false, id: null, mode: "view" });
-  const [opportunityState, setOpportunityState] = useState<DialogState>({ open: false, id: null, mode: "view" });
-  const [activityState, setActivityState] = useState<DialogState>({ open: false, id: null, mode: "view" });
+  const [contactState, setContactState] = useState<DialogState<{ clientId?: string | null }>>({
+    open: false,
+    id: null,
+    mode: "view",
+  });
+  const [opportunityState, setOpportunityState] = useState<DialogState<{ clientId?: string | null }>>({
+    open: false,
+    id: null,
+    mode: "view",
+  });
+  const [activityState, setActivityState] = useState<DialogState<{ clientId?: string | null }>>({
+    open: false,
+    id: null,
+    mode: "view",
+  });
   const [noteState, setNoteState] = useState<NoteState>({ open: false, id: null, context: undefined });
 
   const closeMainDialogs = () => {
@@ -62,37 +75,37 @@ export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
   const openContact = (id: string) => {
     closeMainDialogs();
     setNoteState((prev) => ({ ...prev, open: false, id: null }));
-    setContactState({ open: true, id, mode: "view" });
+    setContactState({ open: true, id, mode: "view", context: undefined });
   };
 
-  const createContact = () => {
+  const createContact = (context?: { clientId?: string | null }) => {
     closeMainDialogs();
     setNoteState((prev) => ({ ...prev, open: false, id: null }));
-    setContactState({ open: true, id: null, mode: "create" });
+    setContactState({ open: true, id: null, mode: "create", context });
   };
 
   const openOpportunity = (id: string) => {
     closeMainDialogs();
     setNoteState((prev) => ({ ...prev, open: false, id: null }));
-    setOpportunityState({ open: true, id, mode: "view" });
+    setOpportunityState({ open: true, id, mode: "view", context: undefined });
   };
 
-  const createOpportunity = () => {
+  const createOpportunity = (context?: { clientId?: string | null }) => {
     closeMainDialogs();
     setNoteState((prev) => ({ ...prev, open: false, id: null }));
-    setOpportunityState({ open: true, id: null, mode: "create" });
+    setOpportunityState({ open: true, id: null, mode: "create", context });
   };
 
   const openActivity = (id: string) => {
     closeMainDialogs();
     setNoteState((prev) => ({ ...prev, open: false, id: null }));
-    setActivityState({ open: true, id, mode: "view" });
+    setActivityState({ open: true, id, mode: "view", context: undefined });
   };
 
-  const createActivity = () => {
+  const createActivity = (context?: { clientId?: string | null }) => {
     closeMainDialogs();
     setNoteState((prev) => ({ ...prev, open: false, id: null }));
-    setActivityState({ open: true, id: null, mode: "create" });
+    setActivityState({ open: true, id: null, mode: "create", context });
   };
 
   const openNote = (id: string) => {
@@ -120,8 +133,9 @@ export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
         onOpenContact={openContact}
         onOpenOpportunity={openOpportunity}
         onOpenActivity={openActivity}
+        onCreateContact={(context) => createContact(context)}
         onCreateOpportunity={createOpportunity}
-        onCreateActivity={createActivity}
+        onCreateActivity={(context) => createActivity(context)}
         onOpenNote={openNote}
         onCreateNote={createNote}
       />
@@ -129,12 +143,13 @@ export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
         open={contactState.open}
         contactId={contactState.id}
         mode={contactState.mode}
+        initialClientId={contactState.context?.clientId || null}
         onClose={() => setContactState((prev) => ({ ...prev, open: false }))}
         onSaved={onRefresh}
         onOpenClient={openClient}
         onOpenOpportunity={openOpportunity}
         onOpenActivity={openActivity}
-        onCreateActivity={createActivity}
+        onCreateActivity={(context) => createActivity(context)}
         onOpenNote={openNote}
         onCreateNote={createNote}
       />
@@ -142,12 +157,13 @@ export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
         open={opportunityState.open}
         opportunityId={opportunityState.id}
         mode={opportunityState.mode}
+        initialClientId={opportunityState.context?.clientId || null}
         onClose={() => setOpportunityState((prev) => ({ ...prev, open: false }))}
         onSaved={onRefresh}
         onOpenClient={openClient}
         onOpenContact={openContact}
         onOpenActivity={openActivity}
-        onCreateActivity={createActivity}
+        onCreateActivity={(context) => createActivity(context)}
         onOpenNote={openNote}
         onCreateNote={createNote}
       />
@@ -155,6 +171,7 @@ export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
         open={activityState.open}
         activityId={activityState.id}
         mode={activityState.mode}
+        initialClientId={activityState.context?.clientId || null}
         onClose={() => setActivityState((prev) => ({ ...prev, open: false }))}
         onSaved={onRefresh}
         onOpenClient={openClient}
