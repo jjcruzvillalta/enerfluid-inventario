@@ -226,51 +226,53 @@ export default function OpportunitiesPage() {
       </Card>
 
       {view === "kanban" ? (
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {stageList.map((stage) => {
-            const rows = grouped.get(stage.id) || [];
-            return (
-              <Card
-                key={stage.id}
-                className={`min-w-[260px] shrink-0 p-4 ${dragOverStage === stage.id ? "ring-2 ring-accent/40" : ""}`}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setDragOverStage(stage.id);
-                }}
-                onDragLeave={() => setDragOverStage(null)}
-                onDrop={(event) => handleDrop(event, stage.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-slate-700">{stage.name}</h2>
-                  <span className="text-xs text-slate-400">{rows.length}</span>
-                </div>
-                <div className="mt-4 min-h-[80px] space-y-3">
-                  {rows.map((row) => (
-                    <button
-                      key={row.id}
-                      type="button"
-                      className={`w-full rounded-2xl border border-line p-3 text-left transition hover:bg-mist ${draggingId === row.id ? "opacity-60" : ""}`}
-                      onClick={() => openOpportunity(row.id)}
-                      draggable
-                      onDragStart={(event) => {
-                        event.dataTransfer.setData("text/plain", row.id);
-                        event.dataTransfer.effectAllowed = "move";
-                        setDraggingId(row.id);
-                      }}
-                      onDragEnd={() => setDraggingId(null)}
-                    >
-                      <p className="text-sm font-semibold text-slate-800">{row.title}</p>
-                      <p className="text-xs text-slate-500">{row.client_name || "-"}</p>
-                      <p className="text-xs text-slate-400">{row.responsible_name || "-"}</p>
-                    </button>
-                  ))}
-                  {!rows.length && !loading && (
-                    <p className="text-xs text-slate-400">Sin oportunidades.</p>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+        <div className="-mx-1 overflow-x-auto px-1">
+          <div className="flex min-w-max gap-4 pb-2">
+            {stageList.map((stage) => {
+              const rows = grouped.get(stage.id) || [];
+              return (
+                <Card
+                  key={stage.id}
+                  className={`w-[280px] shrink-0 p-4 ${dragOverStage === stage.id ? "ring-2 ring-accent/40" : ""}`}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setDragOverStage(stage.id);
+                  }}
+                  onDragLeave={() => setDragOverStage(null)}
+                  onDrop={(event) => handleDrop(event, stage.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-slate-700">{stage.name}</h2>
+                    <span className="text-xs text-slate-400">{rows.length}</span>
+                  </div>
+                  <div className="mt-4 min-h-[80px] space-y-3">
+                    {rows.map((row) => (
+                      <button
+                        key={row.id}
+                        type="button"
+                        className={`w-full rounded-2xl border border-line p-3 text-left transition hover:bg-mist ${draggingId === row.id ? "opacity-60" : ""}`}
+                        onClick={() => openOpportunity(row.id)}
+                        draggable
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData("text/plain", row.id);
+                          event.dataTransfer.effectAllowed = "move";
+                          setDraggingId(row.id);
+                        }}
+                        onDragEnd={() => setDraggingId(null)}
+                      >
+                        <p className="text-sm font-semibold text-slate-800">{row.title}</p>
+                        <p className="text-xs text-slate-500">{row.client_name || "-"}</p>
+                        <p className="text-xs text-slate-400">{row.responsible_name || "-"}</p>
+                      </button>
+                    ))}
+                    {!rows.length && !loading && (
+                      <p className="text-xs text-slate-400">Sin oportunidades.</p>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <Card className="p-4">
