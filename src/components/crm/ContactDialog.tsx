@@ -349,7 +349,9 @@ export function ContactDialog({
                         </span>
                         <span>{item.date ? formatDateTime(item.date) : "-"}</span>
                       </div>
-                      {item.subtitle ? <p className="mt-1 text-xs text-slate-400">{item.subtitle}</p> : null}
+                      {item.type === "activity" && item.subtitle ? (
+                        <p className="mt-1 text-xs text-slate-400">{item.subtitle}</p>
+                      ) : null}
                       {item.detail ? <p className="mt-2 text-sm text-slate-700">{item.detail}</p> : null}
                       <div className="mt-2 flex gap-2">
                         {item.type === "activity" ? (
