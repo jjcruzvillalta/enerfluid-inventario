@@ -9,6 +9,7 @@ import { X } from "lucide-react";
 import { DetailSection } from "@/components/crm/DetailSection";
 import { FieldRow } from "@/components/crm/FieldRow";
 import { formatDateTime } from "@/lib/data";
+import { useAuth } from "@/context/AuthContext";
 
 type ActivityDialogProps = {
   open: boolean;
@@ -17,6 +18,7 @@ type ActivityDialogProps = {
   initialClientId?: string | null;
   onClose: () => void;
   onSaved?: () => void;
+  refreshToken?: number;
   onOpenClient?: (id: string) => void;
   onOpenOpportunity?: (id: string) => void;
   onOpenContact?: (id: string) => void;
@@ -72,12 +74,14 @@ export function ActivityDialog({
   initialClientId,
   onClose,
   onSaved,
+  refreshToken,
   onOpenClient,
   onOpenOpportunity,
   onOpenContact,
   onOpenNote,
   onCreateNote,
 }: ActivityDialogProps) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(mode === "create");
@@ -105,12 +109,11 @@ export function ActivityDialog({
   useEffect(() => {
     if (!open) return;
     const loadConfig = async () => {
-      const [clientsRes, usersRes, typesRes, outcomesRes, oppRes] = await Promise.all([
+      const [clientsRes, usersRes, typesRes, outcomesRes] = await Promise.all([
         fetch("/api/crm/clients", { cache: "no-store", credentials: "include" }),
         fetch("/api/crm/users", { cache: "no-store", credentials: "include" }),
         fetch("/api/crm/config?kind=activity-types", { cache: "no-store", credentials: "include" }),
         fetch("/api/crm/config?kind=activity-outcomes", { cache: "no-store", credentials: "include" }),
-        fetch("/api/crm/opportunities", { cache: "no-store", credentials: "include" }),
       ]);
       if (clientsRes.ok) {
         const data = await clientsRes.json();
@@ -128,15 +131,29 @@ export function ActivityDialog({
         const data = await outcomesRes.json();
         setOutcomes(data?.items || []);
       }
-      if (oppRes.ok) {
-        const data = await oppRes.json();
-        setOpportunities(
-          (data?.opportunities || []).map((row: any) => ({ id: row.id, name: row.title || row.name || row.id }))
-        );
-      }
     };
     loadConfig();
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const loadOpportunities = async () => {
+      const params = new URLSearchParams();
+      if (draft.client_id) params.set("clientId", draft.client_id);
+      const res = await fetch(`/api/crm/opportunities?${params.toString()}`, {
+        cache: "no-store",
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const items = (data?.opportunities || []).map((row: any) => ({ id: row.id, name: row.title || row.name || row.id }));
+      setOpportunities(items);
+      if (draft.opportunity_id && !items.some((row: any) => row.id === draft.opportunity_id)) {
+        setDraft((prev) => ({ ...prev, opportunity_id: "" }));
+      }
+    };
+    loadOpportunities();
+  }, [open, draft.client_id, draft.opportunity_id]);
 
   useEffect(() => {
     if (!open) return;
@@ -183,8 +200,8 @@ export function ActivityDialog({
         activity_type_id: "",
         client_id: initialClientId || "",
         opportunity_id: "",
-        responsible_user_id: "",
-        scheduled_at: "",
+        responsible_user_id: user?.id || "",
+        scheduled_at: toDateTimeInput(new Date().toISOString()),
         detail: "",
         outcome_id: "",
       });
@@ -193,6 +210,11 @@ export function ActivityDialog({
     }
     loadDetail();
   }, [open, activityId, isCreate, initialClientId]);
+
+  useEffect(() => {
+    if (!open || isCreate) return;
+    loadDetail();
+  }, [refreshToken]);
 
   const handleSave = async () => {
     if (!draft.scheduled_at) return;

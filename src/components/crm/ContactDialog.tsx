@@ -16,6 +16,7 @@ type ContactDialogProps = {
   initialClientId?: string | null;
   onClose: () => void;
   onSaved?: () => void;
+  refreshToken?: number;
   onOpenClient?: (id: string) => void;
   onOpenOpportunity?: (id: string) => void;
   onOpenActivity?: (id: string) => void;
@@ -67,6 +68,7 @@ export function ContactDialog({
   initialClientId,
   onClose,
   onSaved,
+  refreshToken,
   onOpenClient,
   onOpenOpportunity,
   onOpenActivity,
@@ -139,6 +141,11 @@ export function ContactDialog({
     }
     loadDetail();
   }, [open, contactId, isCreate, initialClientId]);
+
+  useEffect(() => {
+    if (!open || isCreate) return;
+    loadDetail();
+  }, [refreshToken]);
 
   const handleSave = async () => {
     if (!draft.name.trim()) return;

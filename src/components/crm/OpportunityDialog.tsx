@@ -17,6 +17,7 @@ type OpportunityDialogProps = {
   initialClientId?: string | null;
   onClose: () => void;
   onSaved?: () => void;
+  refreshToken?: number;
   onOpenClient?: (id: string) => void;
   onOpenContact?: (id: string) => void;
   onOpenActivity?: (id: string) => void;
@@ -67,6 +68,7 @@ export function OpportunityDialog({
   initialClientId,
   onClose,
   onSaved,
+  refreshToken,
   onOpenClient,
   onOpenContact,
   onOpenActivity,
@@ -163,6 +165,11 @@ export function OpportunityDialog({
     }
     loadDetail();
   }, [open, opportunityId, isCreate, initialClientId]);
+
+  useEffect(() => {
+    if (!open || isCreate) return;
+    loadDetail();
+  }, [refreshToken]);
 
   const handleSave = async () => {
     if (!draft.title.trim()) return;

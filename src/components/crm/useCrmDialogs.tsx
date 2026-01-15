@@ -35,6 +35,7 @@ type UseCrmDialogsOptions = {
 
 export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
   const { onRefresh } = options;
+  const [refreshToken, setRefreshToken] = useState(0);
   const [clientState, setClientState] = useState<DialogState>({ open: false, id: null, mode: "view" });
   const [contactState, setContactState] = useState<DialogState<{ clientId?: string | null }>>({
     open: false,
@@ -52,6 +53,11 @@ export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
     mode: "view",
   });
   const [noteState, setNoteState] = useState<NoteState>({ open: false, id: null, context: undefined });
+
+  const handleSaved = () => {
+    setRefreshToken((prev) => prev + 1);
+    onRefresh?.();
+  };
 
   const closeMainDialogs = () => {
     setClientState((prev) => ({ ...prev, open: false }));
@@ -128,8 +134,9 @@ export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
         open={clientState.open}
         clientId={clientState.id}
         mode={clientState.mode}
+        refreshToken={refreshToken}
         onClose={() => setClientState((prev) => ({ ...prev, open: false }))}
-        onSaved={onRefresh}
+        onSaved={handleSaved}
         onOpenContact={openContact}
         onOpenOpportunity={openOpportunity}
         onOpenActivity={openActivity}
@@ -144,8 +151,9 @@ export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
         contactId={contactState.id}
         mode={contactState.mode}
         initialClientId={contactState.context?.clientId || null}
+        refreshToken={refreshToken}
         onClose={() => setContactState((prev) => ({ ...prev, open: false }))}
-        onSaved={onRefresh}
+        onSaved={handleSaved}
         onOpenClient={openClient}
         onOpenOpportunity={openOpportunity}
         onOpenActivity={openActivity}
@@ -158,8 +166,9 @@ export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
         opportunityId={opportunityState.id}
         mode={opportunityState.mode}
         initialClientId={opportunityState.context?.clientId || null}
+        refreshToken={refreshToken}
         onClose={() => setOpportunityState((prev) => ({ ...prev, open: false }))}
-        onSaved={onRefresh}
+        onSaved={handleSaved}
         onOpenClient={openClient}
         onOpenContact={openContact}
         onOpenActivity={openActivity}
@@ -172,8 +181,9 @@ export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
         activityId={activityState.id}
         mode={activityState.mode}
         initialClientId={activityState.context?.clientId || null}
+        refreshToken={refreshToken}
         onClose={() => setActivityState((prev) => ({ ...prev, open: false }))}
-        onSaved={onRefresh}
+        onSaved={handleSaved}
         onOpenClient={openClient}
         onOpenOpportunity={openOpportunity}
         onOpenContact={openContact}
@@ -187,7 +197,7 @@ export function useCrmDialogs(options: UseCrmDialogsOptions = {}) {
         parentNoteId={noteState.parentNoteId}
         parentPreview={noteState.parentPreview}
         onClose={() => setNoteState((prev) => ({ ...prev, open: false }))}
-        onSaved={onRefresh}
+        onSaved={handleSaved}
       />
     </>
   );
