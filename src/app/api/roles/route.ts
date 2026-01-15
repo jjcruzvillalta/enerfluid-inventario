@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const { data: users, error: usersError } = await supabaseServer
     .from("app_users")
     .select("id,username,display_name,is_active,created_at")
-    .order("display_name", { ascending: true, nullsLast: true })
+    .order("display_name", { ascending: true, nullsFirst: false })
     .order("username", { ascending: true });
   if (usersError) return new NextResponse("Error al cargar usuarios", { status: 500 });
 
