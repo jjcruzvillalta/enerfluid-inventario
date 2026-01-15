@@ -45,6 +45,8 @@ type ClientDetail = {
     title: string;
     stage_name?: string | null;
     responsible_name?: string | null;
+    created_at?: string | null;
+    closed_at?: string | null;
   }[];
   activities: {
     id: string;
@@ -252,8 +254,28 @@ export function ClientDialog({
         const stage = (opp.stage_name || "").toLowerCase();
         if (!stage) return true;
         return !stage.includes("ganado") && !stage.includes("perdido");
-      })
-      .slice(0, 4);
+      });
+  }, [detail]);
+
+  const closedSummary = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 12);
+    let won = 0;
+    let lost = 0;
+    (detail?.opportunities || []).forEach((opp) => {
+      const stage = (opp.stage_name || "").toLowerCase();
+      const isWon = stage.includes("ganado");
+      const isLost = stage.includes("perdido");
+      if (!isWon && !isLost) return;
+      const date = opp.closed_at || opp.created_at;
+      if (date) {
+        const time = new Date(date).getTime();
+        if (time < cutoff.getTime()) return;
+      }
+      if (isWon) won += 1;
+      if (isLost) lost += 1;
+    });
+    return { won, lost };
   }, [detail]);
 
   const headerTitle = isCreate ? "Nuevo cliente" : detail?.client?.name || "Cliente";
@@ -391,11 +413,13 @@ export function ClientDialog({
                 </div>
               </DetailSection>
 
-              <DetailSection title={`Oportunidades (${detail?.opportunities?.length || 0})`}>
+              <DetailSection title={`Oportunidades (${openOpportunities.length})`}>
                 <div className="flex items-center justify-between pb-2">
-                  <p className="text-xs text-slate-400">
-                    {detail?.opportunities?.length || 0} oportunidades
-                  </p>
+                  <div className="flex flex-wrap gap-3 text-[11px] text-slate-400">
+                    <span>{openOpportunities.length} abiertas</span>
+                    <span>Ganadas 12m: {closedSummary.won}</span>
+                    <span>Perdidas 12m: {closedSummary.lost}</span>
+                  </div>
                   {!isCreate ? (
                     <Button size="sm" variant="outline" onClick={() => onCreateOpportunity?.({ clientId })}>
                       Nueva oportunidad
@@ -403,7 +427,7 @@ export function ClientDialog({
                   ) : null}
                 </div>
                 <div className="space-y-2">
-                  {(detail?.opportunities || []).map((deal) => (
+                  {openOpportunities.map((deal) => (
                     <button
                       key={deal.id}
                       type="button"
@@ -414,7 +438,29 @@ export function ClientDialog({
                       <span>{deal.stage_name || "-"}</span>
                     </button>
                   ))}
-                  {!detail?.opportunities?.length ? <p className="text-xs text-slate-400">Sin oportunidades.</p> : null}
+                  {!openOpportunities.length ? <p className="text-xs text-slate-400">Sin oportunidades abiertas.</p> : null}
+                </div>
+              </DetailSection>
+
+              <DetailSection title="Proximamente">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-500">Proximas actividades</p>
+                  <div className="space-y-2">
+                    {upcomingActivities.map((activity) => (
+                      <button
+                        key={activity.id}
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-xl border border-line bg-white px-3 py-2 text-left text-xs text-slate-600 hover:bg-mist"
+                        onClick={() => onOpenActivity?.(activity.id)}
+                      >
+                        <span className="font-semibold text-ink">{activity.type_name || "Actividad"}</span>
+                        <span>{activity.scheduled_at ? formatDateTime(activity.scheduled_at) : "-"}</span>
+                      </button>
+                    ))}
+                    {!upcomingActivities.length ? (
+                      <p className="text-xs text-slate-400">Sin actividades futuras.</p>
+                    ) : null}
+                  </div>
                 </div>
               </DetailSection>
             </div>
@@ -447,7 +493,7 @@ export function ClientDialog({
                     </button>
                   </div>
                 </div>
-                <div className="space-y-3">
+                <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-2">
                   {filteredTimeline.map((item) => (
                     <div key={`${item.type}-${item.id}`} className="rounded-xl border border-line bg-white px-3 py-2 text-xs text-slate-600">
                       <div className="flex items-center justify-between">
@@ -514,48 +560,6 @@ export function ClientDialog({
                     </div>
                   ))}
                   {!filteredTimeline.length ? <p className="text-xs text-slate-400">Sin eventos.</p> : null}
-                </div>
-              </DetailSection>
-              <DetailSection title="Seguimiento rapido">
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500">Proximas actividades</p>
-                    <div className="mt-2 space-y-2">
-                      {upcomingActivities.map((activity) => (
-                        <button
-                          key={activity.id}
-                          type="button"
-                          className="flex w-full items-center justify-between rounded-xl border border-line bg-white px-3 py-2 text-left text-xs text-slate-600 hover:bg-mist"
-                          onClick={() => onOpenActivity?.(activity.id)}
-                        >
-                          <span className="font-semibold text-ink">{activity.type_name || "Actividad"}</span>
-                          <span>{activity.scheduled_at ? formatDateTime(activity.scheduled_at) : "-"}</span>
-                        </button>
-                      ))}
-                      {!upcomingActivities.length ? (
-                        <p className="text-xs text-slate-400">Sin actividades futuras.</p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500">Oportunidades abiertas</p>
-                    <div className="mt-2 space-y-2">
-                      {openOpportunities.map((deal) => (
-                        <button
-                          key={deal.id}
-                          type="button"
-                          className="flex w-full items-center justify-between rounded-xl border border-line bg-white px-3 py-2 text-left text-xs text-slate-600 hover:bg-mist"
-                          onClick={() => onOpenOpportunity?.(deal.id)}
-                        >
-                          <span className="font-semibold text-ink">{deal.title}</span>
-                          <span>{deal.stage_name || "-"}</span>
-                        </button>
-                      ))}
-                      {!openOpportunities.length ? (
-                        <p className="text-xs text-slate-400">Sin oportunidades abiertas.</p>
-                      ) : null}
-                    </div>
-                  </div>
                 </div>
               </DetailSection>
             </div>
