@@ -9,10 +9,14 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Enerfluid Apps",
   description: "Plataforma integral de Enerfluid",
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/enerfluid-icono.png",
-    shortcut: "/enerfluid-icono.png",
-    apple: "/enerfluid-icono.png",
+    icon: [
+      { url: "/enerfluid-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/enerfluid-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/enerfluid-icon-192.png",
+    apple: "/enerfluid-icon-180.png",
   },
 };
 
