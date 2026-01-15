@@ -9,6 +9,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationsDialog } from "@/components/crm/NotificationsDialog";
+import { AppBrand } from "@/components/common/AppBrand";
 import {
   Activity,
   BarChart3,
@@ -92,16 +93,10 @@ export default function CrmLayout({ children }) {
     return <div className="flex h-screen items-center justify-center">Sin acceso a CRM</div>;
   }
 
-  return (
-    <div className="min-h-screen h-screen text-ink flex overflow-hidden bg-gradient-to-br from-white via-cloud to-mist">
+    return (
+        <div className="min-h-screen h-screen text-ink flex overflow-hidden bg-gradient-to-br from-white via-cloud to-mist">
       <aside className="hidden lg:flex w-72 shrink-0 flex-col border-r border-line bg-white px-6 py-8 shadow-soft lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 bg-slate-900 rounded-lg flex items-center justify-center text-white font-bold">C</div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Enerfluid Apps</p>
-            <p className="text-sm font-semibold text-slate-700">CRM</p>
-          </div>
-        </div>
+        <AppBrand appName="CRM" />
         <div className="mt-10 flex flex-col gap-3">
           {navItems.map((item) => (
             <NavButton key={item.href} href={item.href} icon={item.icon}>
@@ -170,17 +165,7 @@ export default function CrmLayout({ children }) {
               <div className="text-sm font-semibold text-slate-700">Enerfluid CRM</div>
             </div>
             <SheetContent side="left" className="flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-slate-900 text-white flex items-center justify-center text-sm font-bold">
-                  C
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    Enerfluid Apps
-                  </p>
-                  <p className="text-sm font-semibold text-slate-700">CRM</p>
-                </div>
-              </div>
+              <AppBrand appName="CRM" compact />
               <div className="flex flex-col gap-2">
                 {navItems.map((item) => (
                   <SheetClose asChild key={item.href}>

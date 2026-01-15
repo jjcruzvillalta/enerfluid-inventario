@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { InventoryProvider } from "@/context/InventoryContext";
+import { AppBrand } from "@/components/common/AppBrand";
 
 const navItems = [
     { href: "/inventory/upload", label: "Carga de archivos", icon: UploadCloud },
@@ -42,13 +43,7 @@ const NavButton = ({ href, icon: Icon, children }) => {
 function InventorySidebar({ user, onLogout }) {
     return (
         <aside className="hidden lg:flex w-72 flex-col border-r border-line bg-white px-6 py-8 shadow-soft lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
-            <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">E</div>
-                <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Enerfluid</p>
-                    <p className="text-sm font-semibold text-slate-700">Inventario</p>
-                </div>
-            </div>
+            <AppBrand appName="Inventario" />
             <div className="mt-10 flex flex-col gap-3">
                 {navItems.map((item) => (
                     <NavButton key={item.href} href={item.href} icon={item.icon}>
@@ -110,13 +105,7 @@ function InventoryLayoutContent({ children }) {
 
             <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
                 <SheetContent side="left" className="w-72 px-6 py-8">
-                    <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">E</div>
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Enerfluid</p>
-                            <p className="text-sm font-semibold text-slate-700">Inventario</p>
-                        </div>
-                    </div>
+                    <AppBrand appName="Inventario" compact />
                     <div className="mt-10 flex flex-col gap-3">
                         {navItems.map((item) => (
                             <NavButton key={item.href} href={item.href} icon={item.icon}>

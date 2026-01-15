@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Home, LogOut } from "lucide-react";
+import { AppBrand } from "@/components/common/AppBrand";
 
 export default function UsersLayout({ children }) {
   const router = useRouter();
@@ -22,10 +23,13 @@ export default function UsersLayout({ children }) {
     <div className="min-h-screen bg-gradient-to-br from-white via-cloud to-mist text-ink">
       <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
         <Card className="glass-panel">
-          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Hola, {greeting}</p>
-              <h2 className="text-xl font-semibold text-ink">Gestion de usuarios</h2>
+          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
+              <AppBrand appName="Usuarios" />
+              <div>
+                <p className="text-sm text-slate-500">Hola, {greeting}</p>
+                <h2 className="text-xl font-semibold text-ink">Gestion de usuarios</h2>
+              </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button className="w-full sm:w-auto" variant="outline" onClick={() => router.push("/")}>
