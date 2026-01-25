@@ -10,6 +10,9 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "Segoe UI", "sans-serif"],
+      },
       colors: {
         ink: "#0f172a",
         navy: "#16213c",

@@ -4,7 +4,7 @@
 
 @layer base {
   html {
-    font-family: "Manrope", "Segoe UI", sans-serif;
+    @apply font-sans;
   }
   body {
     @apply bg-cloud text-ink;

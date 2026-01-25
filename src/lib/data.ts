@@ -1,4 +1,47 @@
 import * as XLSX from "xlsx";
+import type { WorkBook } from "xlsx";
+
+export type UploadType = "movimientos" | "ventas" | "items" | "catalogo";
+
+export type MovementRow = {
+  date: Date;
+  item: string;
+  desc: string;
+  qty: number;
+  total: number;
+  cxUnit: number;
+  pvpTotal: number;
+  referencia: string;
+  persona: string;
+  mot: string;
+  type: string;
+};
+
+export type VentasRow = {
+  date: Date;
+  item: string;
+  unidades: number;
+  ventaBruta: number;
+  costoTotal: number;
+  descuentoTotal: number;
+  persona: string;
+};
+
+export type CatalogEntry = { code: string; name: string; brand: string };
+export type ItemsIndexItem = {
+  code: string;
+  desc: string;
+  brand: string;
+  isCatalog: boolean;
+  line: string;
+  pvp: number;
+  stock: number;
+  cost: number;
+  lastCost: number;
+};
+export type ItemsIndex = { items: ItemsIndexItem[]; costMap: Map<string, number> };
+
+type GenericRow = Record<string, any>;
 
 export const palette = [
   "#1f6feb",
@@ -12,7 +55,7 @@ export const palette = [
   "#a855f7",
 ];
 
-const hashKey = (value) => {
+const hashKey = (value: unknown) => {
   const text = String(value || "");
   let hash = 0;
   for (let i = 0; i < text.length; i += 1) {
@@ -21,9 +64,9 @@ const hashKey = (value) => {
   return hash;
 };
 
-export const colorForKey = (value) => palette[hashKey(value) % palette.length];
+export const colorForKey = (value: unknown) => palette[hashKey(value) % palette.length];
 
-export const toNumber = (value) => {
+export const toNumber = (value: unknown) => {
   if (value === null || value === undefined || value === "") return NaN;
   if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
   let raw = String(value).trim();
@@ -61,16 +104,16 @@ export const toNumber = (value) => {
   return Number.isFinite(num) ? num : NaN;
 };
 
-export const normalizeText = (value) =>
+export const normalizeText = (value: unknown) =>
   String(value || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim();
 
-export const formatDate = (date) => date.toISOString().slice(0, 10);
+export const formatDate = (date: Date) => date.toISOString().slice(0, 10);
 
-export const formatDateTime = (value) => {
+export const formatDateTime = (value: string | Date | null | undefined) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
@@ -83,7 +126,7 @@ export const formatDateTime = (value) => {
   });
 };
 
-export const parseExcelDate = (value) => {
+export const parseExcelDate = (value: unknown): Date | null => {
   if (!value) return null;
   if (value instanceof Date) return value;
   if (typeof value === "number") {
@@ -94,22 +137,23 @@ export const parseExcelDate = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-export const readWorkbookFromArrayBuffer = (buffer) => XLSX.read(buffer, { type: "array" });
+export const readWorkbookFromArrayBuffer = (buffer: ArrayBuffer): WorkBook =>
+  XLSX.read(buffer, { type: "array" });
 
-export const readSheetRows = (workbook) => {
+export const readSheetRows = (workbook: WorkBook): GenericRow[] => {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(sheet, { defval: null });
+  return XLSX.utils.sheet_to_json(sheet, { defval: null }) as GenericRow[];
 };
 
-export const loadFromFile = (file) =>
+export const loadFromFile = (file: File): Promise<WorkBook> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(readWorkbookFromArrayBuffer(reader.result));
+    reader.onload = () => resolve(readWorkbookFromArrayBuffer(reader.result as ArrayBuffer));
     reader.onerror = () => reject(reader.error);
     reader.readAsArrayBuffer(file);
   });
 
-export const normalizeKey = (value) =>
+export const normalizeKey = (value: unknown) =>
   String(value || "")
     .toLowerCase()
     .normalize("NFD")
@@ -117,7 +161,7 @@ export const normalizeKey = (value) =>
     .replace(/\s+/g, "")
     .trim();
 
-export const getField = (row, options) => {
+export const getField = (row: GenericRow, options: string[]) => {
   for (const key of options) {
     if (row[key] !== undefined) return row[key];
     const target = normalizeKey(key);
@@ -128,7 +172,7 @@ export const getField = (row, options) => {
   return null;
 };
 
-export const buildUploadRows = (type, rows) => {
+export const buildUploadRows = (type: UploadType, rows: GenericRow[]) => {
   if (type === "movimientos") {
     return rows
       .map((row) => {
@@ -207,9 +251,8 @@ export const buildUploadRows = (type, rows) => {
   return [];
 };
 
-export const parseMovements = (rows) =>
-  (rows || [])
-    .map((row) => ({
+export const parseMovements = (rows: GenericRow[]): MovementRow[] => {
+  const parsed = (rows || []).map((row) => ({
       date: parseExcelDate(row.date) || parseExcelDate(getField(row, ["Fecha", "Emision"])),
       item: String(row.item || row.Item || "").trim(),
       desc: String(row.descripcion || row.Descripcion || "").trim(),
@@ -221,12 +264,12 @@ export const parseMovements = (rows) =>
       persona: String(row.persona || row.Persona || "").trim(),
       mot: String(row.mot || row.Mot || "").trim(),
       type: String(row.tipo_movimiento || row.TipoMovimiento || "").trim(),
-    }))
-    .filter((row) => row.date && row.item);
+    }));
+  return parsed.filter((row) => row.date && row.item) as MovementRow[];
+};
 
-export const parseVentas = (rows) =>
-  (rows || [])
-    .map((row) => ({
+export const parseVentas = (rows: GenericRow[]): VentasRow[] => {
+  const parsed = (rows || []).map((row) => ({
       date: parseExcelDate(row.date) || parseExcelDate(getField(row, ["Fecha", "Emision"])),
       item: String(row.item || row.Item || "").trim(),
       unidades: toNumber(row.unidades ?? row.Unidades ?? row.Cantidad),
@@ -241,10 +284,11 @@ export const parseVentas = (rows) =>
           getField(row, ["Persona", "Cliente", "Cliente Nombre", "Nombre Cliente", "ClienteNombre", "cliente"]) ||
           ""
       ).trim(),
-    }))
-    .filter((row) => row.date && row.item);
+    }));
+  return parsed.filter((row) => row.date && row.item) as VentasRow[];
+};
 
-export const getMovementSign = (row) => {
+export const getMovementSign = (row: Pick<MovementRow, "type" | "qty" | "total">) => {
   const type = normalizeText(row.type);
   if (type.includes("egreso") || type.includes("salida")) return -1;
   if (type.includes("ingreso") || type.includes("entrada")) return 1;
@@ -253,7 +297,7 @@ export const getMovementSign = (row) => {
   return 1;
 };
 
-export const getRowsDateRange = (rows) => {
+export const getRowsDateRange = (rows: Array<{ date: Date }>) => {
   if (!rows || !rows.length) return null;
   let minDate = rows[0].date;
   let maxDate = rows[0].date;
@@ -264,7 +308,7 @@ export const getRowsDateRange = (rows) => {
   return { minDate, maxDate };
 };
 
-export const isoWeek = (date) => {
+export const isoWeek = (date: Date) => {
   const temp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = temp.getUTCDay() || 7;
   temp.setUTCDate(temp.getUTCDate() + 4 - dayNum);
@@ -273,7 +317,7 @@ export const isoWeek = (date) => {
   return { year: temp.getUTCFullYear(), week };
 };
 
-export const getPeriodKey = (date, period) => {
+export const getPeriodKey = (date: Date, period: string) => {
   if (period === "day") return date.toISOString().slice(0, 10);
   if (period === "week") {
     const w = isoWeek(date);
@@ -285,7 +329,7 @@ export const getPeriodKey = (date, period) => {
   return `${date.getFullYear()}`;
 };
 
-export const periodStartDate = (key, period) => {
+export const periodStartDate = (key: string, period: string) => {
   if (period === "day") return new Date(`${key}T00:00:00`);
   if (period === "week") {
     const [year, wk] = key.split("-W");
@@ -307,7 +351,7 @@ export const periodStartDate = (key, period) => {
   return new Date(Number(key), 0, 1);
 };
 
-export const formatCurrency = (value) => {
+export const formatCurrency = (value: number) => {
   if (!Number.isFinite(value)) return "-";
   return value.toLocaleString("es-EC", {
     style: "currency",
@@ -317,23 +361,23 @@ export const formatCurrency = (value) => {
   });
 };
 
-export const formatNumber = (value, digits = 0) =>
+export const formatNumber = (value: number, digits = 0) =>
   Number.isFinite(value) ? value.toLocaleString("es-EC", { maximumFractionDigits: digits }) : "-";
 
-export const buildPoints = (dates, values) =>
+export const buildPoints = (dates: Date[], values: Array<number | null | undefined>) =>
   (dates || []).map((date, index) => ({
     x: date,
     y: values?.[index] ?? null,
   }));
 
-export const getTimeUnit = (period) => {
+export const getTimeUnit = (period: string) => {
   if (period === "day") return "day";
   if (period === "week") return "week";
   if (period === "month") return "month";
   return "year";
 };
 
-export const formatTick = (value, period) => {
+export const formatTick = (value: string | number | Date, period: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   if (period === "day") {
@@ -349,7 +393,7 @@ export const formatTick = (value, period) => {
   return String(date.getFullYear());
 };
 
-export const buildLineDistribution = (itemsIndex, selectedSet) => {
+export const buildLineDistribution = (itemsIndex: ItemsIndex | null, selectedSet?: Set<string> | null) => {
   if (!itemsIndex) return null;
   const totals = new Map();
   itemsIndex.items.forEach((item) => {
@@ -367,7 +411,7 @@ export const buildLineDistribution = (itemsIndex, selectedSet) => {
   return top;
 };
 
-export const buildCatalogShare = (itemsIndex, selectedSet) => {
+export const buildCatalogShare = (itemsIndex: ItemsIndex | null, selectedSet?: Set<string> | null) => {
   if (!itemsIndex) return null;
   let catalogValue = 0;
   let nonCatalogValue = 0;
@@ -384,8 +428,8 @@ export const buildCatalogShare = (itemsIndex, selectedSet) => {
   };
 };
 
-export const buildCatalogLookup = (itemsIndex, catalogIndex) => {
-  const map = new Map();
+export const buildCatalogLookup = (itemsIndex: ItemsIndex | null, catalogIndex?: Map<string, CatalogEntry> | null) => {
+  const map = new Map<string, boolean>();
   if (itemsIndex?.items?.length) {
     itemsIndex.items.forEach((item) => {
       map.set(item.code, item.isCatalog);
@@ -399,7 +443,7 @@ export const buildCatalogLookup = (itemsIndex, catalogIndex) => {
   return map;
 };
 
-export const buildTopCustomersByYearData = (rows, maxTop = 10, legendTop = 10) => {
+export const buildTopCustomersByYearData = (rows: VentasRow[], maxTop = 10, legendTop = 10) => {
   if (!rows?.length) return null;
   const byYear = new Map();
   const totalsByCustomer = new Map();
@@ -483,7 +527,7 @@ export const buildTopCustomersByYearData = (rows, maxTop = 10, legendTop = 10) =
   };
 };
 
-export const buildSalesByCatalogData = (rows, catalogLookup) => {
+export const buildSalesByCatalogData = (rows: VentasRow[], catalogLookup?: Map<string, boolean> | null) => {
   if (!rows?.length) return null;
   const byYear = new Map();
 
@@ -520,8 +564,8 @@ export const buildSalesByCatalogData = (rows, catalogLookup) => {
   };
 };
 
-export const buildCatalogIndex = (rows) => {
-  const map = new Map();
+export const buildCatalogIndex = (rows: GenericRow[]): Map<string, CatalogEntry> => {
+  const map = new Map<string, CatalogEntry>();
   (rows || []).forEach((row) => {
     const rawCode = getField(row, ["SKU", "Sku", "Codigo", "C?digo", "sku", "codigo"]);
     const code = String(rawCode ?? row.sku ?? row.codigo ?? row.code ?? "").trim();
@@ -535,9 +579,9 @@ export const buildCatalogIndex = (rows) => {
   return map;
 };
 
-export const buildItemsIndex = (rows, catalogIndex) => {
-  const items = [];
-  const costMap = new Map();
+export const buildItemsIndex = (rows: GenericRow[], catalogIndex?: Map<string, CatalogEntry> | null): ItemsIndex => {
+  const items: ItemsIndexItem[] = [];
+  const costMap = new Map<string, number>();
 
   (rows || []).forEach((row) => {
     const rawCode = getField(row, ["C?digo", "Codigo", "Item", "code", "codigo", "item", "sku"]);
@@ -584,7 +628,19 @@ export const buildItemsIndex = (rows, catalogIndex) => {
   return { items, costMap };
 };
 
-export const buildSeriesForItems = ({ movements, period, startDate, endDate, itemsSet }) => {
+export const buildSeriesForItems = ({
+  movements,
+  period,
+  startDate,
+  endDate,
+  itemsSet,
+}: {
+  movements: MovementRow[];
+  period?: string;
+  startDate?: Date;
+  endDate?: Date;
+  itemsSet?: Set<string> | null;
+}) => {
   if (!movements?.length) return null;
   const resolvedPeriod = period || "month";
   const filteredMovements = movements
@@ -659,7 +715,19 @@ export const buildSeriesForItems = ({ movements, period, startDate, endDate, ite
   };
 };
 
-export const buildCostSeriesForItems = ({ movements, period, startDate, endDate, itemsSet }) => {
+export const buildCostSeriesForItems = ({
+  movements,
+  period,
+  startDate,
+  endDate,
+  itemsSet,
+}: {
+  movements: MovementRow[];
+  period?: string;
+  startDate?: Date;
+  endDate?: Date;
+  itemsSet?: Set<string> | null;
+}) => {
   if (!movements?.length) return null;
   const resolvedPeriod = period || "month";
   const rows = movements
@@ -720,7 +788,19 @@ export const buildCostSeriesForItems = ({ movements, period, startDate, endDate,
   return { periods, periodDates, seriesList, period: resolvedPeriod };
 };
 
-export const buildSalesPriceSeriesForItems = ({ ventasRows, period, startDate, endDate, itemsSet }) => {
+export const buildSalesPriceSeriesForItems = ({
+  ventasRows,
+  period,
+  startDate,
+  endDate,
+  itemsSet,
+}: {
+  ventasRows: VentasRow[];
+  period?: string;
+  startDate?: Date;
+  endDate?: Date;
+  itemsSet?: Set<string> | null;
+}) => {
   if (!ventasRows?.length) return null;
   const resolvedPeriod = period || "month";
   const rows = ventasRows.filter((row) => (!itemsSet || itemsSet.has(row.item)));

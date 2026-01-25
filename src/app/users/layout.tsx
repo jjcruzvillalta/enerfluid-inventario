@@ -7,13 +7,14 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Home, LogOut } from "lucide-react";
 import { AppBrand } from "@/components/common/AppBrand";
+import { UsersLayoutSkeleton } from "@/components/users/UsersLayoutSkeleton";
 
 export default function UsersLayout({ children }) {
   const router = useRouter();
   const { user, loading, canAccess, logout } = useAuth();
   const greeting = useMemo(() => user?.displayName || user?.username || "-", [user]);
 
-  if (loading) return <div className="flex h-screen items-center justify-center">Cargando...</div>;
+  if (loading) return <UsersLayoutSkeleton />;
   if (!user) return <div className="flex h-screen items-center justify-center">Inicia sesion...</div>;
   if (!canAccess("users", "admin")) {
     return <div className="flex h-screen items-center justify-center">Sin acceso a Usuarios</div>;

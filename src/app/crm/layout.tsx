@@ -1,65 +1,18 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader } from "@/components/ui/card";
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationsDialog } from "@/components/crm/NotificationsDialog";
 import { NoteDialog } from "@/components/crm/NoteDialog";
 import { AppBrand } from "@/components/common/AppBrand";
-import {
-  Activity,
-  BarChart3,
-  Bell,
-  Briefcase,
-  Contact,
-  Home,
-  LogOut,
-  Menu,
-  Settings,
-  Users,
-} from "lucide-react";
-
-type NavButtonProps = {
-  href: string;
-  icon?: React.ComponentType<{ className?: string }>;
-  children: React.ReactNode;
-  className?: string;
-} & Omit<React.ComponentProps<typeof Link>, "href" | "className" | "children">;
-
-const NavButton = ({ href, icon: Icon, children, className, ...props }: NavButtonProps) => {
-  const pathname = usePathname();
-  const isActive = pathname === href;
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
-        isActive
-          ? "border-accent/20 bg-accentSoft text-accent shadow-sm"
-          : "border-transparent bg-transparent text-slate-600 hover:bg-accentSoft/60",
-        className
-      )}
-      {...props}
-    >
-      {Icon ? <Icon className="h-4 w-4" /> : null}
-      <span>{children}</span>
-    </Link>
-  );
-};
-
-const navItems = [
-  { href: "/crm/analysis", label: "Analisis", icon: BarChart3 },
-  { href: "/crm/clients", label: "Clientes", icon: Users },
-  { href: "/crm/contacts", label: "Contactos", icon: Contact },
-  { href: "/crm/opportunities", label: "Oportunidades", icon: Briefcase },
-  { href: "/crm/activities", label: "Actividades", icon: Activity },
-  { href: "/crm/settings", label: "Configuracion", icon: Settings },
-];
+import { CrmNav } from "@/components/crm/CrmNav";
+import { CrmSidebar } from "@/components/crm/CrmSidebar";
+import { CrmHeader } from "@/components/crm/CrmHeader";
+import { CrmLayoutSkeleton } from "@/components/crm/CrmLayoutSkeleton";
+import { LogOut, Menu } from "lucide-react";
 
 export default function CrmLayout({ children }) {
   const router = useRouter();
@@ -96,73 +49,29 @@ export default function CrmLayout({ children }) {
     }
   }, [notificationsOpen]);
 
-  if (loading) return <div className="flex h-screen items-center justify-center">Cargando...</div>;
+  if (loading) return <CrmLayoutSkeleton />;
   if (!user) return <div className="flex h-screen items-center justify-center">Inicia sesion...</div>;
   if (!canAccess("crm", "standard")) {
     return <div className="flex h-screen items-center justify-center">Sin acceso a CRM</div>;
   }
 
-    return (
-        <div className="min-h-screen h-screen text-ink flex overflow-hidden bg-gradient-to-br from-white via-cloud to-mist">
-      <aside className="hidden lg:flex w-72 shrink-0 flex-col border-r border-line bg-white px-6 py-8 shadow-soft lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
-        <AppBrand appName="CRM" />
-        <div className="mt-10 flex flex-col gap-3">
-          {navItems.map((item) => (
-            <NavButton key={item.href} href={item.href} icon={item.icon}>
-              {item.label}
-            </NavButton>
-          ))}
-        </div>
-        <div className="mt-auto border-t pt-6">
-          <div className="flex items-center gap-3 mb-4 px-2">
-            <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-xs">
-              {greeting[0]?.toUpperCase()}
-            </div>
-            <div className="text-xs overflow-hidden">
-              <p className="font-medium text-slate-700 truncate">{greeting}</p>
-              <p className="text-slate-400">Sesion activa</p>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full gap-2 text-slate-500"
-            onClick={async () => {
-              await logout();
-              router.push("/login");
-            }}
-          >
-            <LogOut className="h-4 w-4" />
-            Cerrar sesion
-          </Button>
-        </div>
-      </aside>
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
+
+  return (
+    <div className="min-h-screen h-screen text-ink flex overflow-hidden bg-gradient-to-br from-white via-cloud to-mist">
+      <CrmSidebar greeting={greeting} onLogout={handleLogout} />
 
       <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
         <div className="mx-auto flex w-full min-w-0 max-w-screen-2xl flex-col gap-6 px-4 py-6 md:px-8 lg:px-10">
-          <Card className="glass-panel">
-            <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Hola, {greeting}</p>
-                <h2 className="text-xl font-semibold text-ink">Enerfluid CRM</h2>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" className="relative" onClick={() => setNotificationsOpen(true)}>
-                  <Bell className="mr-2 h-4 w-4" />
-                  Notificaciones
-                  {unreadCount > 0 ? (
-                    <span className="ml-2 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-accent px-2 text-[10px] text-white">
-                      {unreadCount}
-                    </span>
-                  ) : null}
-                </Button>
-                <Button variant="outline" onClick={() => router.push("/")}>
-                  <Home className="mr-2 h-4 w-4" />
-                  Portal
-                </Button>
-              </div>
-            </CardHeader>
-          </Card>
+          <CrmHeader
+            greeting={greeting}
+            unreadCount={unreadCount}
+            onNotifications={() => setNotificationsOpen(true)}
+            onPortal={() => router.push("/")}
+          />
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <div className="flex items-center justify-between rounded-2xl border border-line bg-white px-4 py-3 shadow-soft lg:hidden">
               <SheetTrigger asChild>
@@ -175,15 +84,7 @@ export default function CrmLayout({ children }) {
             </div>
             <SheetContent side="left" className="flex flex-col gap-4">
               <AppBrand appName="CRM" compact />
-              <div className="flex flex-col gap-2">
-                {navItems.map((item) => (
-                  <SheetClose asChild key={item.href}>
-                    <NavButton href={item.href} icon={item.icon}>
-                      {item.label}
-                    </NavButton>
-                  </SheetClose>
-                ))}
-              </div>
+              <CrmNav className="flex flex-col gap-2" onNavigate={() => setMobileNavOpen(false)} />
               <div className="mt-auto border-t pt-4">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-xs">
@@ -199,10 +100,7 @@ export default function CrmLayout({ children }) {
                     variant="outline"
                     size="sm"
                     className="w-full gap-2 text-slate-500"
-                    onClick={async () => {
-                      await logout();
-                      router.push("/login");
-                    }}
+                    onClick={handleLogout}
                   >
                     <LogOut className="h-4 w-4" />
                     Cerrar sesion
@@ -233,12 +131,7 @@ export default function CrmLayout({ children }) {
           setNotificationsOpen(false);
         }}
       />
-      <NoteDialog
-        open={noteOpen}
-        noteId={noteId}
-        onClose={() => setNoteOpen(false)}
-        onSaved={loadNotifications}
-      />
+      <NoteDialog open={noteOpen} noteId={noteId} onClose={() => setNoteOpen(false)} onSaved={loadNotifications} />
     </div>
   );
 }
