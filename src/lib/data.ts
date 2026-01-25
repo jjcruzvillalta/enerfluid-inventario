@@ -127,14 +127,17 @@ export const formatDateTime = (value: string | Date | null | undefined) => {
 };
 
 export const parseExcelDate = (value: unknown): Date | null => {
-  if (!value) return null;
+  if (value === null || value === undefined || value === "") return null;
   if (value instanceof Date) return value;
   if (typeof value === "number") {
     const excelEpoch = Date.UTC(1899, 11, 30);
     return new Date(excelEpoch + value * 86400000);
   }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
 };
 
 export const readWorkbookFromArrayBuffer = (buffer: ArrayBuffer): WorkBook =>
