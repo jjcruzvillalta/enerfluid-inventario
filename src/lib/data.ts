@@ -316,7 +316,7 @@ export const isoWeek = (date: Date) => {
   const dayNum = temp.getUTCDay() || 7;
   temp.setUTCDate(temp.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(temp.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((temp - yearStart) / 86400000 + 1) / 7);
+  const week = Math.ceil(((temp.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
   return { year: temp.getUTCFullYear(), week };
 };
 
