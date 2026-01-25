@@ -676,7 +676,9 @@ export const buildSeriesForItems = ({
     bucketed.set(key, entry);
   });
 
-  const keys = [...bucketed.keys()].sort((a, b) => periodStartDate(a, resolvedPeriod) - periodStartDate(b, resolvedPeriod));
+  const keys = [...bucketed.keys()].sort(
+    (a, b) => periodStartDate(a, resolvedPeriod).getTime() - periodStartDate(b, resolvedPeriod).getTime()
+  );
   const labels = [];
   const dates = [];
   const unitsSeries = [];
@@ -771,7 +773,7 @@ export const buildCostSeriesForItems = ({
   });
 
   const periods = [...buckets.keys()].sort(
-    (a, b) => periodStartDate(a, resolvedPeriod) - periodStartDate(b, resolvedPeriod)
+    (a, b) => periodStartDate(a, resolvedPeriod).getTime() - periodStartDate(b, resolvedPeriod).getTime()
   );
   const periodDates = periods.map((key) => periodStartDate(key, resolvedPeriod));
 
@@ -858,7 +860,7 @@ export const buildSalesPriceSeriesForItems = ({
   });
 
   const periods = [...buckets.keys()].sort(
-    (a, b) => periodStartDate(a, resolvedPeriod) - periodStartDate(b, resolvedPeriod)
+    (a, b) => periodStartDate(a, resolvedPeriod).getTime() - periodStartDate(b, resolvedPeriod).getTime()
   );
   const periodDates = periods.map((key) => periodStartDate(key, resolvedPeriod));
   const priceSeries = periods.map((key) => {
