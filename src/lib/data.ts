@@ -648,7 +648,7 @@ export const buildSeriesForItems = ({
   const resolvedPeriod = period || "month";
   const filteredMovements = movements
     .filter((row) => !itemsSet || itemsSet.has(row.item))
-    .sort((a, b) => a.date - b.date);
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
   if (!filteredMovements.length) return null;
 
   const dataStart = filteredMovements[0].date;
