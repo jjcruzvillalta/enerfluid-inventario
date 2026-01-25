@@ -398,7 +398,7 @@ export const formatTick = (value: string | number | Date, period: string) => {
 
 export const buildLineDistribution = (itemsIndex: ItemsIndex | null, selectedSet?: Set<string> | null) => {
   if (!itemsIndex) return null;
-  const totals = new Map();
+  const totals = new Map<string, number>();
   itemsIndex.items.forEach((item) => {
     if (selectedSet && !selectedSet.has(item.code)) return;
     const value = Number.isFinite(item.stock) && Number.isFinite(item.cost) ? item.stock * item.cost : 0;
@@ -448,15 +448,15 @@ export const buildCatalogLookup = (itemsIndex: ItemsIndex | null, catalogIndex?:
 
 export const buildTopCustomersByYearData = (rows: VentasRow[], maxTop = 10, legendTop = 10) => {
   if (!rows?.length) return null;
-  const byYear = new Map();
-  const totalsByCustomer = new Map();
+  const byYear = new Map<number, Map<string, number>>();
+  const totalsByCustomer = new Map<string, number>();
   rows.forEach((row) => {
     const year = row.date instanceof Date ? row.date.getFullYear() : NaN;
     if (!Number.isFinite(year)) return;
     const value = Number.isFinite(row.ventaBruta) ? row.ventaBruta : 0;
     if (!value) return;
     const customer = row.persona || "Sin cliente";
-    const yearMap = byYear.get(year) || new Map();
+    const yearMap = byYear.get(year) || new Map<string, number>();
     yearMap.set(customer, (yearMap.get(customer) || 0) + value);
     byYear.set(year, yearMap);
   });
@@ -464,7 +464,7 @@ export const buildTopCustomersByYearData = (rows: VentasRow[], maxTop = 10, lege
   if (!byYear.size) return null;
 
   const years = Array.from(byYear.keys()).sort((a, b) => a - b);
-  const topEntriesByYear = new Map();
+  const topEntriesByYear = new Map<number, Array<[string, number]>>();
   let hasOthers = false;
   years.forEach((year) => {
     const entries = Array.from(byYear.get(year).entries()).sort((a, b) => b[1] - a[1]);
@@ -532,7 +532,7 @@ export const buildTopCustomersByYearData = (rows: VentasRow[], maxTop = 10, lege
 
 export const buildSalesByCatalogData = (rows: VentasRow[], catalogLookup?: Map<string, boolean> | null) => {
   if (!rows?.length) return null;
-  const byYear = new Map();
+  const byYear = new Map<number, { catalogo: number; noCatalogo: number }>();
 
   rows.forEach((row) => {
     const year = row.date instanceof Date ? row.date.getFullYear() : NaN;
@@ -656,7 +656,7 @@ export const buildSeriesForItems = ({
   const rangeStart = startDate || dataStart;
   const rangeEnd = endDate || dataEnd;
 
-  const bucketed = new Map();
+  const bucketed = new Map<string, { units: number; value: number }>();
   filteredMovements.forEach((row) => {
     if (rangeEnd && row.date > rangeEnd) return;
     const qty = Number.isFinite(row.qty) ? Math.abs(row.qty) : 0;
@@ -742,8 +742,8 @@ export const buildCostSeriesForItems = ({
   const rangeStart = startDate || dateRange.minDate;
   const rangeEnd = endDate || dateRange.maxDate;
 
-  const buckets = new Map();
-  const totalsBySupplier = new Map();
+  const buckets = new Map<string, Map<string, { sumCost: number; sumQty: number }>>();
+  const totalsBySupplier = new Map<string, number>();
 
   rows.forEach((row) => {
     if (rangeStart && row.date < rangeStart) return;
@@ -760,8 +760,8 @@ export const buildCostSeriesForItems = ({
 
     const supplier = row.persona || row.referencia || "Sin proveedor";
     const key = getPeriodKey(row.date, resolvedPeriod);
-    if (!buckets.has(key)) buckets.set(key, new Map());
-    const map = buckets.get(key);
+    if (!buckets.has(key)) buckets.set(key, new Map<string, { sumCost: number; sumQty: number }>());
+    const map = buckets.get(key)!;
     const entry = map.get(supplier) || { sumCost: 0, sumQty: 0 };
     entry.sumCost += unitCost * qty;
     entry.sumQty += qty;
@@ -813,7 +813,17 @@ export const buildSalesPriceSeriesForItems = ({
   const rangeStart = startDate || dateRange.minDate;
   const rangeEnd = endDate || dateRange.maxDate;
 
-  const buckets = new Map();
+  const buckets = new Map<
+    string,
+    {
+      priceSum: number;
+      priceUnits: number;
+      costSum: number;
+      costUnits: number;
+      netSum: number;
+      netUnits: number;
+    }
+  >();
   rows.forEach((row) => {
     if (rangeStart && row.date < rangeStart) return;
     if (rangeEnd && row.date > rangeEnd) return;
